@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import User, Transaction
+from app.models import User, Transaction, TransactionStatus
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/wallet", tags=["Wallet & Payments"])
@@ -10,10 +10,10 @@ router = APIRouter(prefix="/api/v1/wallet", tags=["Wallet & Payments"])
 
 class DepositRequest(BaseModel):
     amount: float
-    payment_method: str  # e.g. "bkash", "nagad", "sandbox"
+    payment_method: str = "bkash"  # bkash, nagad, sandbox
 
 
-# ১. ওয়ালেট ব্যালেন্স চেক করা
+# ১. ওয়ালেট ব্যালেন্স চেক করা
 @router.get("/balance")
 def get_balance(current_user: User = Depends(get_current_user)):
     return {
@@ -22,7 +22,7 @@ def get_balance(current_user: User = Depends(get_current_user)):
     }
 
 
-# ২. ওয়ালেটে টাকা রিচার্জ/ডিপোজিট করা (Sandbox Mode)
+# ২. ওয়ালেটে টাকা রিচার্জ/ডিপোজিট করা (Sandbox Mode)
 @router.post("/deposit")
 def deposit_money(
     request: DepositRequest,
@@ -44,8 +44,9 @@ def deposit_money(
     new_transaction = Transaction(
         receiver_id=current_user.id,
         amount=request.amount,
+        payment_method=request.payment_method,
         type="deposit",
-        status="completed",
+        status=TransactionStatus.SUCCESS,
     )
 
     db.add(new_transaction)
@@ -53,6 +54,6 @@ def deposit_money(
     db.refresh(current_user)
 
     return {
-        "message": f"সফলভাবে ৳{request.amount} আপনার ওয়ালেটে জমা হয়েছে",
+        "message": f"সফলভাবে ৳{request.amount} আপনার ওয়ালেটে জমা হয়েছে",
         "new_balance": current_user.wallet_balance,
     }
