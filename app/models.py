@@ -5,6 +5,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     Enum as SQLEnum,
+    Float,
     ForeignKey,
     Integer,
     Numeric,
@@ -41,6 +42,7 @@ class ApplicationStatus(str, Enum):
 class TransactionStatus(str, Enum):
     PENDING = "pending"
     SUCCESS = "success"
+    COMPLETED = "completed"
     FAILED = "failed"
 
 
@@ -58,6 +60,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     otp_code = Column(String, nullable=True)
+    wallet_balance = Column(Float, default=0.0)
 
 
 class Job(Base):
@@ -97,10 +100,11 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)  # ওয়ালেট ডিপোজিটে job_id ফাঁকা থাকতে পারে
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
-    payment_method = Column(String, default="bkash")  # bkash / nagad
+    payment_method = Column(String, default="bkash")  # bkash / nagad / sandbox
+    type = Column(String, default="deposit")  # deposit / payout / escrow
     status = Column(
         SQLEnum(TransactionStatus), default=TransactionStatus.SUCCESS
     )
