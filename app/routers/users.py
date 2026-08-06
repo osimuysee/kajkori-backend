@@ -1,0 +1,117 @@
+import random
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from app.auth import create_access_token, get_current_user
+from app.database import get_db
+from app.models import Job, JobApplication, Transaction, User, UserRole
+from app.schemas import (
+    ApplicationResponse,
+    JobResponse,
+    OTPRequest,
+    OTPVerify,
+    Token,
+    TransactionResponse,
+    UserResponse,
+)
+
+router = APIRouter(prefix="/api/v1/users", tags=["User & Dashboard"])
+
+
+# ১. OTP পাঠানো
+@router.post("/send-otp")
+def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
+    generated_otp = str(random.randint(1000, 9999))
+    user = db.query(User).filter(User.phone == request.phone).first()
+
+    selected_role = (
+        UserRole.EMPLOYER
+        if request.role and request.role.lower() == "employer"
+        else UserRole.WORKER
+    )
+
+    if not user:
+        user = User(
+            phone=request.phone, role=selected_role, otp_code=generated_otp
+        )
+        db.add(user)
+    else:
+        user.otp_code = generated_otp
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": f"OTP sent to {request.phone}",
+        "debug_otp": generated_otp,
+    }
+
+
+# ২. OTP ভেরিফাই ও টোকেন জেনারেশন
+@router.post("/verify-otp", response_model=Token)
+def verify_otp(request: OTPVerify, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.phone == request.phone).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    if user.otp_code != request.otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP code"
+        )
+
+    user.is_verified = True
+    user.otp_code = None
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user,
+    }
+
+
+# ৩. নিজের প্রোফাইল দেখা
+@router.get("/me", response_model=UserResponse)
+def get_my_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+# ৪. ড্যাশবোর্ড: নিজের পোস্ট করা কাজের তালিকা (Employer Dashboard)
+@router.get("/me/jobs", response_model=List[JobResponse])
+def get_my_jobs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return db.query(Job).filter(Job.employer_id == current_user.id).all()
+
+
+# ৫. ড্যাশবোর্ড: নিজের করা আবেদনের তালিকা (Worker Dashboard)
+@router.get("/me/applications", response_model=List[ApplicationResponse])
+def get_my_applications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return (
+        db.query(JobApplication)
+        .filter(JobApplication.worker_id == current_user.id)
+        .all()
+    )
+
+
+# ৬. ড্যাশবোর্ড: লেনদেনের ইতিহাস (Payment History)
+@router.get("/me/transactions", response_model=List[TransactionResponse])
+def get_my_transactions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return (
+        db.query(Transaction)
+        .filter(Transaction.receiver_id == current_user.id)
+        .all()
+    )
