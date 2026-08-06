@@ -14,13 +14,20 @@ from app.schemas import (
     TransactionResponse,
     UserResponse,
 )
+from app.services.sms import send_sms
 
 router = APIRouter(prefix="/api/v1/users", tags=["User & Dashboard"])
 
 
-# ১. OTP পাঠানো
+# ১. OTP পাঠানো (Database + Real SMS)
 @router.post("/send-otp")
-def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
+async def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
+    if len(request.phone) < 11:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন"
+        )
+
     generated_otp = str(random.randint(1000, 9999))
     user = db.query(User).filter(User.phone == request.phone).first()
 
@@ -39,6 +46,10 @@ def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
         user.otp_code = generated_otp
 
     db.commit()
+
+    # SMS Gateway দিয়ে OTP পাঠানো
+    sms_text = f"KajKori প্ল্যাটফর্মে আপনার ভেরিফিকেশন কোড (OTP): {generated_otp}"
+    await send_sms(request.phone, sms_text)
 
     return {
         "status": "success",
