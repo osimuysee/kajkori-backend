@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.routers import jobs, users
+from app.routers import ivr
 
 # ডাটাবেজ টেবিল তৈরি করা
 Base.metadata.create_all(bind=engine)
@@ -24,7 +25,7 @@ app.add_middleware(
 # রাউটার যুক্ত করা
 app.include_router(users.router)
 app.include_router(jobs.router)
-
+app.include_router(ivr.router)
 
 @app.get("/")
 def root():
