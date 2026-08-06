@@ -2,6 +2,8 @@ fastapi
 uvicorn
 sqlalchemy
 python-jose[cryptography]
+PyJWT
 passlib[bcrypt]
 python-multipart
 python-dotenv
+alembic
