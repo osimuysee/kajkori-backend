@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -10,8 +11,6 @@ from app.models import (
     Job,
     JobApplication,
     JobStatus,
-    Transaction,
-    TransactionStatus,
     User,
     UserRole,
 )
@@ -20,20 +19,13 @@ from app.schemas import (
     ApplicationResponse,
     JobCreate,
     JobResponse,
-    TransactionResponse,
 )
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs & Applications"])
 
 
-# ১. সমস্ত উন্মুক্ত কাজের তালিকা দেখা (Public Feed)
-@router.get("/", response_model=List[JobResponse])
-def get_all_jobs(db: Session = Depends(get_db)):
-    return db.query(Job).filter(Job.status == JobStatus.OPEN).all()
-
-
-# ২. নতুন কাজ পোস্ট করা (শুধুমাত্র Employer করতে পারবে)
-@router.post("/", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
+# ১. নতুন পোস্ট তৈরি করা (Employer)
+@router.post("/", response_model=JobResponse)
 def create_job(
     job_data: JobCreate,
     db: Session = Depends(get_db),
@@ -42,27 +34,70 @@ def create_job(
     if current_user.role != UserRole.EMPLOYER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="শুধুমাত্র Employer রোলধারী ইউজাররা কাজ পোস্ট করতে পারবেন",
+            detail="শুধুমাত্র নিয়োগকর্তা (Employer) কাজ পোস্ট করতে পারবেন",
         )
 
     new_job = Job(
-        title=job_data.title,
-        description=getattr(job_data, "description", None),
-        budget=job_data.budget,
-        location_district=getattr(job_data, "location_district", None),
-        location_upazila=job_data.location_upazila,
-        category=getattr(job_data, "category", None),
         employer_id=current_user.id,
+        title=job_data.title,
+        description=job_data.description,
+        category=job_data.category,
+        budget=job_data.budget,
+        location_district=job_data.location_district,
+        location_upazila=job_data.location_upazila,
         status=JobStatus.OPEN,
     )
-
     db.add(new_job)
     db.commit()
     db.refresh(new_job)
     return new_job
 
 
-# ৩. নির্দিষ্ট একটি কাজের ডিটেইলস দেখা
+# ২. অ্যাডভান্সড সার্চ ও ফিল্টারিং সহ সব কাজের তালিকা (Worker & Public)
+@router.get("/", response_model=List[JobResponse])
+def get_jobs(
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    district: Optional[str] = None,
+    upazila: Optional[str] = None,
+    min_budget: Optional[float] = None,
+    max_budget: Optional[float] = None,
+    status_filter: Optional[JobStatus] = JobStatus.OPEN,
+    db: Session = Depends(get_db),
+):
+    query = db.query(Job)
+
+    if status_filter:
+        query = query.filter(Job.status == status_filter)
+
+    if category:
+        query = query.filter(Job.category.ilike(f"%{category}%"))
+
+    if district:
+        query = query.filter(Job.location_district.ilike(f"%{district}%"))
+
+    if upazila:
+        query = query.filter(Job.location_upazila.ilike(f"%{upazila}%"))
+
+    if min_budget is not None:
+        query = query.filter(Job.budget >= min_budget)
+
+    if max_budget is not None:
+        query = query.filter(Job.budget <= max_budget)
+
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Job.title.ilike(search_pattern),
+                Job.description.ilike(search_pattern),
+            )
+        )
+
+    return query.all()
+
+
+# ৩. নির্দিষ্ট কাজের বিস্তারিত দেখা
 @router.get("/{job_id}", response_model=JobResponse)
 def get_job_detail(job_id: int, db: Session = Depends(get_db)):
     job = db.query(Job).filter(Job.id == job_id).first()
@@ -73,8 +108,8 @@ def get_job_detail(job_id: int, db: Session = Depends(get_db)):
     return job
 
 
-# ৪. কাজে আবেদন করা (শুধুমাত্র Worker করতে পারবে)
-@router.post("/{job_id}/apply", response_model=ApplicationResponse, status_code=status.HTTP_201_CREATED)
+# ৪. কাজের আবেদন করা (Worker)
+@router.post("/{job_id}/apply", response_model=ApplicationResponse)
 def apply_to_job(
     job_id: int,
     app_data: ApplicationCreate,
@@ -84,25 +119,14 @@ def apply_to_job(
     if current_user.role != UserRole.WORKER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="শুধুমাত্র Worker রোলধারী ইউজাররা আবেদন করতে পারবেন",
+            detail="শুধুমাত্র কর্মীরা (Worker) আবেদন করতে পারবেন",
         )
 
     job = db.query(Job).filter(Job.id == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="কাজটি পাওয়া যায়নি"
-        )
-
-    if job.employer_id == current_user.id:
+    if not job or job.status != JobStatus.OPEN:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="নিজের পোস্ট করা কাজে আবেদন করা সম্ভব নয়",
-        )
-
-    if job.status != JobStatus.OPEN:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="এই কাজটিতে আর আবেদন গ্রহণ করা হচ্ছে না",
+            detail="কাজটি আবেদনের জন্য উন্মুক্ত নয়",
         )
 
     existing_app = (
@@ -113,31 +137,28 @@ def apply_to_job(
         )
         .first()
     )
-
     if existing_app:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="আপনি ইতিমধ্যে এই কাজটিতে আবেদন করেছেন",
+            detail="আপনি ইতিমধ্যে এই কাজে আবেদন করেছেন",
         )
 
-    rate = getattr(app_data, "proposed_rate", None) or getattr(app_data, "proposed_budget", job.budget)
-    note = getattr(app_data, "cover_note", None)
+    proposed_rate = app_data.proposed_rate or app_data.proposed_budget or job.budget
 
-    application = JobApplication(
+    new_application = JobApplication(
         job_id=job_id,
         worker_id=current_user.id,
-        proposed_rate=rate,
-        cover_note=note,
+        proposed_rate=proposed_rate,
+        cover_note=app_data.cover_note,
         status=ApplicationStatus.PENDING,
     )
-
-    db.add(application)
+    db.add(new_application)
     db.commit()
-    db.refresh(application)
-    return application
+    db.refresh(new_application)
+    return new_application
 
 
-# ৫. নিয়োগকর্তা কর্তৃক পোস্ট করা কাজের সব আবেদন দেখা
+# ৫. নিয়োগকর্তার আবেদনের তালিকা দেখা
 @router.get("/{job_id}/applications", response_model=List[ApplicationResponse])
 def get_job_applications(
     job_id: int,
@@ -153,7 +174,7 @@ def get_job_applications(
     if job.employer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="আবেদন দেখার অনুমতি আপনার নেই",
+            detail="শুধুমাত্র পোস্টদাতা এই আবেদনগুলো দেখতে পারবেন",
         )
 
     return (
@@ -163,8 +184,8 @@ def get_job_applications(
     )
 
 
-# ৬. কর্মীকে কাজ বরাদ্দ করা (Assign Worker)
-@router.post("/{job_id}/assign/{worker_id}", response_model=JobResponse)
+# ৬. কর্মীকে কাজ বরাদ্দ করা (Employer)
+@router.post("/{job_id}/assign/{worker_id}")
 def assign_worker(
     job_id: int,
     worker_id: int,
@@ -172,18 +193,16 @@ def assign_worker(
     current_user: User = Depends(get_current_user),
 ):
     job = db.query(Job).filter(Job.id == job_id).first()
-    if not job:
+    if not job or job.employer_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="কাজটি পাওয়া যায়নি"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="কাজ বরাদ্দ করার অনুমতি নেই",
         )
 
-    if job.employer_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="কর্মী নির্ধারণের অনুমতি আপনার নেই",
-        )
+    job.worker_id = worker_id
+    job.status = JobStatus.ASSIGNED
 
-    application = (
+    app = (
         db.query(JobApplication)
         .filter(
             JobApplication.job_id == job_id,
@@ -191,87 +210,27 @@ def assign_worker(
         )
         .first()
     )
-    if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="কর্মী এই কাজটিতে আবেদন করেননি",
-        )
-
-    job.worker_id = worker_id
-    job.status = JobStatus.ASSIGNED
-    application.status = ApplicationStatus.ACCEPTED
+    if app:
+        app.status = ApplicationStatus.ACCEPTED
 
     db.commit()
-    db.refresh(job)
-    return job
+    return {"status": "success", "message": "কর্মীকে সফলভাবে কাজটি বরাদ্দ করা হয়েছে"}
 
 
-# ৭. কাজ সম্পন্ন ঘোষণা করা (Mark Job Completed)
-@router.post("/{job_id}/complete", response_model=JobResponse)
+# ৭. কাজ সম্পন্ন ঘোষণা করা (Employer)
+@router.post("/{job_id}/complete")
 def complete_job(
     job_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     job = db.query(Job).filter(Job.id == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="কাজটি পাওয়া যায়নি"
-        )
-
-    if current_user.id not in [job.employer_id, job.worker_id]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="কাজটি সম্পন্ন ঘোষণা করার অনুমতি আপনার নেই",
-        )
-
-    if job.status != JobStatus.ASSIGNED:
+    if not job or job.employer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="কাজটি আগে Assign করা হতে হবে",
+            detail="কাজ সম্পূর্ণ ঘোষণা করার অনুমতি নেই",
         )
 
     job.status = JobStatus.COMPLETED
     db.commit()
-    db.refresh(job)
-    return job
-
-
-# ৮. পেমেন্ট প্রদান সিমুলেশন (Payout / Disbursement)
-@router.post("/{job_id}/payout", response_model=TransactionResponse)
-def release_payout(
-    job_id: int,
-    payment_method: str = "bkash",
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    job = db.query(Job).filter(Job.id == job_id).first()
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="কাজটি পাওয়া যায়নি"
-        )
-
-    if job.employer_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="শুধুমাত্র Employer পেমেন্ট রিলিজ করতে পারবেন",
-        )
-
-    if job.status != JobStatus.COMPLETED:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="পেমেন্ট রিলিজ করার আগে কাজ সম্পন্ন ঘোষণা করতে হবে",
-        )
-
-    transaction = Transaction(
-        job_id=job.id,
-        receiver_id=job.worker_id,
-        amount=job.budget,
-        payment_method=payment_method,
-        status=TransactionStatus.SUCCESS,
-    )
-
-    db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
-    return transaction
+    return {"status": "success", "message": "কাজটি সম্পন্ন হিসেবে চিহ্নিত করা হয়েছে"}
