@@ -22,7 +22,7 @@ from app.services.sms import send_sms
 router = APIRouter(prefix="/api/v1/users", tags=["User & Dashboard"])
 
 
-# ১. OTP পাঠানো (Rate Limited + Database + Real/Dev SMS)
+# ১. OTP পাঠানো (Rate Limited + Database + Real/Dev SMS + Safe Error Catching)
 @router.post("/send-otp")
 @limiter.limit("3/minute")
 async def send_otp(
@@ -30,40 +30,49 @@ async def send_otp(
     otp_data: OTPRequest,
     db: Session = Depends(get_db)
 ):
-    if len(otp_data.phone) < 11:
+    try:
+        if len(otp_data.phone) < 11:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন"
+            )
+
+        generated_otp = str(random.randint(1000, 9999))
+        user = db.query(User).filter(User.phone == otp_data.phone).first()
+
+        selected_role = (
+            UserRole.EMPLOYER
+            if otp_data.role and otp_data.role.lower() == "employer"
+            else UserRole.WORKER
+        )
+
+        if not user:
+            user = User(
+                phone=otp_data.phone, role=selected_role, otp_code=generated_otp
+            )
+            db.add(user)
+        else:
+            user.otp_code = generated_otp
+
+        db.commit()
+
+        # Greenweb SMS Service কল করা
+        sms_text = f"KajKori প্ল্যাটফর্মে আপনার ভেরিফিকেশন কোড (OTP): {generated_otp}"
+        await send_sms(otp_data.phone, sms_text)
+
+        return {
+            "status": "success",
+            "message": f"OTP sent to {otp_data.phone}",
+            "debug_otp": generated_otp,
+        }
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Server Execution Error: {str(e)}"
         )
-
-    generated_otp = str(random.randint(1000, 9999))
-    user = db.query(User).filter(User.phone == otp_data.phone).first()
-
-    selected_role = (
-        UserRole.EMPLOYER
-        if otp_data.role and otp_data.role.lower() == "employer"
-        else UserRole.WORKER
-    )
-
-    if not user:
-        user = User(
-            phone=otp_data.phone, role=selected_role, otp_code=generated_otp
-        )
-        db.add(user)
-    else:
-        user.otp_code = generated_otp
-
-    db.commit()
-
-    # Greenweb SMS Service কল করা
-    sms_text = f"KajKori প্ল্যাটফর্মে আপনার ভেরিফিকেশন কোড (OTP): {generated_otp}"
-    await send_sms(otp_data.phone, sms_text)
-
-    return {
-        "status": "success",
-        "message": f"OTP sent to {otp_data.phone}",
-        "debug_otp": generated_otp,
-    }
 
 
 # ২. OTP ভেরিফাই ও টোকেন জেনারেশন
