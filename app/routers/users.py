@@ -22,14 +22,15 @@ from app.services.sms import send_sms
 router = APIRouter(prefix="/api/v1/users", tags=["User & Dashboard"])
 
 
-# ১. OTP পাঠানো (Rate Limited + Database + Real SMS)
+# ১. OTP পাঠানো (Rate Limited + Database + Real/Dev SMS)
 @router.post("/send-otp")
 @limiter.limit("3/minute")
 async def send_otp(
-    request: Request,
+    http_request: Request,
     otp_data: OTPRequest,
     db: Session = Depends(get_db)
 ):
+    # ১১ ডিজিট চেক
     if len(otp_data.phone) < 11:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -55,7 +56,7 @@ async def send_otp(
 
     db.commit()
 
-    # SMS Gateway দিয়ে OTP পাঠানো
+    # Greenweb SMS Service কল করা
     sms_text = f"KajKori প্ল্যাটফর্মে আপনার ভেরিফিকেশন কোড (OTP): {generated_otp}"
     await send_sms(otp_data.phone, sms_text)
 
