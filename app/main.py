@@ -1,44 +1,25 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from sqlalchemy import text
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.database import Base, engine
-from app.limiter import limiter
-from app.routers.ivr import router as ivr_router
-from app.routers.jobs import router as jobs_router
 from app.routers.users import router as users_router
+from app.routers.jobs import router as jobs_router
 from app.routers.wallet import router as wallet_router
+from app.routers.dashboard import router as dashboard_router
 
-# ডাটাবেজ টেবিল আপডেট ও মিসিং কলাম অটো-চেক
-try:
-    with engine.connect() as conn:
-        conn.execute(
-            text(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_balance"
-                " FLOAT DEFAULT 0.0;"
-            )
-        )
-        conn.commit()
-    Base.metadata.create_all(bind=engine)
-except Exception as e:
-    print(f"Database Initialization Error: {e}")
+# ডাটাবেজ টেবিল তৈরি
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="KajKori Backend API",
-    description=(
-        "Backend services for KajKori Platform - Connecting Employers &"
-        " Workers"
-    ),
+    title="KajKori API",
+    description="A local service marketplace platform for Bangladesh",
     version="1.0.0",
 )
 
-# Rate Limiter কনফিগারেশন
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# CORS Middleware
+# ১. CORS Middleware (HTML/JavaScript থেকে ব্যাকএন্ডের API কলের অনুমতি দেওয়ার জন্য)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,16 +28,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# রাউটার যুক্ত করা
+# ২. সকল রাউটার যুক্ত করা
 app.include_router(users_router)
 app.include_router(jobs_router)
 app.include_router(wallet_router)
-app.include_router(ivr_router)
+app.include_router(dashboard_router)
 
 
-@app.get("/")
-def root():
-    return {
-        "message": "Welcome to KajKori Platform API",
-        "docs": "Visit /docs for API documentation",
-    }
+# ৩. HTML/CSS/JS সরাসরি সার্ভ করার ব্যবস্থা
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def read_root():
+        index_path = os.path.join("static", "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"message": "KajKori API is running successfully!"}
+else:
+    @app.get("/", include_in_schema=False)
+    def read_root():
+        return {"message": "KajKori API is running successfully!"}
