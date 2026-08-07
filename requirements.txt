@@ -6,6 +6,5 @@ PyJWT
 passlib[bcrypt]
 python-multipart
 python-dotenv
-alembic
 psycopg2-binary
 httpx
