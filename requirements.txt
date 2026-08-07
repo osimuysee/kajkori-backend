@@ -8,3 +8,4 @@ python-multipart
 python-dotenv
 psycopg2-binary
 httpx
+pydantic

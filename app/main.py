@@ -1,15 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
-
-# সরাসরি ফাইল থেকে রাউটার ইম্পোর্ট করা হচ্ছে (ইনইট ফাইলের ঝামেলা এড়াতে)
 from app.routers.ivr import router as ivr_router
 from app.routers.jobs import router as jobs_router
 from app.routers.users import router as users_router
 from app.routers.wallet import router as wallet_router
 
-# ডাটাবেজ টেবিল তৈরি করা
-Base.metadata.create_all(bind=engine)
+# ডাটাবেজ টেবিল তৈরি (Error-Safe)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Database Initialization Error: {e}")
 
 app = FastAPI(
     title="KajKori Backend API",
