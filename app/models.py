@@ -1,65 +1,48 @@
+import enum
 from datetime import datetime
-from enum import Enum
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum as SQLEnum,
-    Float,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-)
+
+from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from app.database import Base
 
 
-# Enum Definitions
-class UserRole(str, Enum):
+class UserRole(str, enum.Enum):
     EMPLOYER = "employer"
     WORKER = "worker"
 
 
-class DeviceType(str, Enum):
-    SMARTPHONE = "smartphone"
-    BUTTON_PHONE = "button_phone"
-
-
-class JobStatus(str, Enum):
+class JobStatus(str, enum.Enum):
+    OPEN = "open"
     PENDING = "pending"
     ASSIGNED = "assigned"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
 
-class ApplicationStatus(str, Enum):
+class ApplicationStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
 
 
-class TransactionStatus(str, Enum):
-    PENDING = "pending"
+class TransactionStatus(str, enum.Enum):
     SUCCESS = "success"
-    COMPLETED = "completed"
+    PENDING = "pending"
     FAILED = "failed"
 
 
-# Database Models
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     phone = Column(String, unique=True, index=True, nullable=False)
-    full_name = Column(String, nullable=True)
-    role = Column(SQLEnum(UserRole), default=UserRole.WORKER, nullable=False)
-    device_type = Column(SQLEnum(DeviceType), default=DeviceType.BUTTON_PHONE)
-    location_district = Column(String, index=True, nullable=True)
-    location_upazila = Column(String, index=True, nullable=True)
-    is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
     otp_code = Column(String, nullable=True)
+    is_verified = Column(Boolean, default=False)
+    role = Column(Enum(UserRole), default=UserRole.WORKER)
+    full_name = Column(String, nullable=True)
+    location_district = Column(String, nullable=True)
+    location_upazila = Column(String, nullable=True)
     wallet_balance = Column(Float, default=0.0)
 
 
@@ -70,14 +53,12 @@ class Job(Base):
     employer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     worker_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     title = Column(String, nullable=False)
-    budget = Column(Numeric(10, 2), nullable=False)
-    status = Column(SQLEnum(JobStatus), default=JobStatus.PENDING)
-    location_upazila = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    employer = relationship("User", foreign_keys=[employer_id])
-    worker = relationship("User", foreign_keys=[worker_id])
-    applications = relationship("JobApplication", back_populates="job")
+    description = Column(Text, nullable=True)
+    category = Column(String, nullable=True)
+    budget = Column(Float, nullable=False)
+    location_district = Column(String, nullable=True)
+    location_upazila = Column(String, nullable=True)
+    status = Column(Enum(JobStatus), default=JobStatus.OPEN)
 
 
 class JobApplication(Base):
@@ -86,29 +67,29 @@ class JobApplication(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
     worker_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    proposed_budget = Column(Numeric(10, 2), nullable=True)
-    status = Column(
-        SQLEnum(ApplicationStatus), default=ApplicationStatus.PENDING
-    )
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    job = relationship("Job", back_populates="applications")
-    worker = relationship("User", foreign_keys=[worker_id])
+    proposed_rate = Column(Float, nullable=True)
+    cover_note = Column(Text, nullable=True)
+    status = Column(Enum(ApplicationStatus), default=ApplicationStatus.PENDING)
 
 
 class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)  # ওয়ালেট ডিপোজিটে job_id ফাঁকা থাকতে পারে
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    amount = Column(Numeric(10, 2), nullable=False)
-    payment_method = Column(String, default="bkash")  # bkash / nagad / sandbox
-    type = Column(String, default="deposit")  # deposit / payout / escrow
-    status = Column(
-        SQLEnum(TransactionStatus), default=TransactionStatus.SUCCESS
-    )
-    created_at = Column(DateTime, default=datetime.utcnow)
+    amount = Column(Float, nullable=False)
+    payment_method = Column(String, nullable=False)
+    status = Column(Enum(TransactionStatus), default=TransactionStatus.SUCCESS)
 
-    job = relationship("Job")
-    receiver = relationship("User", foreign_keys=[receiver_id])
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    target_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    rating = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
