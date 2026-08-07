@@ -1,9 +1,8 @@
-from decimal import Decimal
 from typing import List, Optional
 from pydantic import BaseModel
+from app.models import ApplicationStatus, JobStatus, TransactionStatus, UserRole
 
 
-# User & Auth Schemas
 class OTPRequest(BaseModel):
     phone: str
     role: Optional[str] = "worker"
@@ -14,42 +13,57 @@ class OTPVerify(BaseModel):
     otp_code: str
 
 
-class UserResponse(BaseModel):
-    id: int
-    phone: str
-    role: str
-    is_verified: bool
-
-    class Config:
-        from_attributes = True
-
-
 class Token(BaseModel):
     access_token: str
     token_type: str
-    user: UserResponse
+    user: dict
 
 
-# Application Schemas
-class ApplicationCreate(BaseModel):
-    proposed_budget: Optional[Decimal] = None
-
-
-class ApplicationResponse(BaseModel):
+class UserResponse(BaseModel):
     id: int
-    job_id: int
-    worker_id: int
-    proposed_budget: Optional[Decimal]
-    status: str
+    phone: str
+    is_verified: bool
+    role: UserRole
+    full_name: Optional[str] = None
+    location_district: Optional[str] = None
+    location_upazila: Optional[str] = None
+    wallet_balance: Optional[float] = 0.0
 
     class Config:
         from_attributes = True
 
 
-# Job Schemas
+class ProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    location_district: Optional[str] = None
+    location_upazila: Optional[str] = None
+
+
+class ReviewCreate(BaseModel):
+    job_id: int
+    target_user_id: int
+    rating: int
+    comment: Optional[str] = None
+
+
+class ReviewResponse(BaseModel):
+    id: int
+    job_id: int
+    reviewer_id: int
+    target_user_id: int
+    rating: int
+    comment: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class JobCreate(BaseModel):
     title: str
-    budget: Decimal
+    description: Optional[str] = None
+    budget: float
+    category: Optional[str] = None
+    location_district: Optional[str] = None
     location_upazila: str
 
 
@@ -58,16 +72,42 @@ class JobResponse(BaseModel):
     employer_id: int
     worker_id: Optional[int] = None
     title: str
-    budget: Decimal
-    status: str
-    location_upazila: str
-class TransactionResponse(BaseModel):
+    description: Optional[str] = None
+    budget: float
+    location_district: Optional[str] = None
+    location_upazila: Optional[str] = None
+    category: Optional[str] = None
+    status: JobStatus
+
+    class Config:
+        from_attributes = True
+
+
+class ApplicationCreate(BaseModel):
+    proposed_rate: Optional[float] = None
+    proposed_budget: Optional[float] = None
+    cover_note: Optional[str] = None
+
+
+class ApplicationResponse(BaseModel):
     id: int
     job_id: int
+    worker_id: int
+    proposed_rate: Optional[float] = None
+    cover_note: Optional[str] = None
+    status: ApplicationStatus
+
+    class Config:
+        from_attributes = True
+
+
+class TransactionResponse(BaseModel):
+    id: int
+    job_id: Optional[int] = None
     receiver_id: int
-    amount: Decimal
+    amount: float
     payment_method: str
-    status: str
+    status: TransactionStatus
 
     class Config:
         from_attributes = True

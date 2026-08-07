@@ -7,22 +7,22 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, get_current_user
 from app.database import get_db
 from app.limiter import limiter
-from app.models import Job, JobApplication, Transaction, User, UserRole
+from app.models import Job, JobStatus, Review, User, UserRole
 from app.schemas import (
-    ApplicationResponse,
-    JobResponse,
     OTPRequest,
     OTPVerify,
+    ProfileUpdate,
+    ReviewCreate,
+    ReviewResponse,
     Token,
-    TransactionResponse,
     UserResponse,
 )
 from app.services.sms import send_sms
 
-router = APIRouter(prefix="/api/v1/users", tags=["User & Dashboard"])
+router = APIRouter(prefix="/api/v1/users", tags=["User, Profile & Reviews"])
 
 
-# ১. OTP পাঠানো (Rate Limited + Database + Real/Dev SMS + Safe Error Catching)
+# ১. OTP পাঠানো
 @router.post("/send-otp")
 @limiter.limit("3/minute")
 async def send_otp(
@@ -56,7 +56,6 @@ async def send_otp(
 
         db.commit()
 
-        # Greenweb SMS Service কল করা
         sms_text = f"KajKori প্ল্যাটফর্মে আপনার ভেরিফিকেশন কোড (OTP): {generated_otp}"
         await send_sms(otp_data.phone, sms_text)
 
@@ -110,36 +109,93 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# ৪. ড্যাশবোর্ড: নিজের পোস্ট করা কাজের তালিকা (Employer Dashboard)
-@router.get("/me/jobs", response_model=List[JobResponse])
-def get_my_jobs(
+# ৪. নিজের প্রোফাইল আপডেট করা
+@router.put("/me", response_model=UserResponse)
+def update_profile(
+    profile_data: ProfileUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return db.query(Job).filter(Job.employer_id == current_user.id).all()
+    if profile_data.full_name is not None:
+        current_user.full_name = profile_data.full_name
+    if profile_data.location_district is not None:
+        current_user.location_district = profile_data.location_district
+    if profile_data.location_upazila is not None:
+        current_user.location_upazila = profile_data.location_upazila
+
+    db.commit()
+    db.refresh(current_user)
+    return current_user
 
 
-# ৫. ড্যাশবোর্ড: নিজের করা আবেদনের তালিকা (Worker Dashboard)
-@router.get("/me/applications", response_model=List[ApplicationResponse])
-def get_my_applications(
+# ৫. যেকোনো ইউজারের পাবলিক প্রোফাইল দেখা
+@router.get("/{user_id}", response_model=UserResponse)
+def get_user_public_profile(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ইউজার পাওয়া যায়নি",
+        )
+    return user
+
+
+# ৬. কাজ শেষে রেটিং/রিভিউ প্রদান করা
+@router.post("/review", response_model=ReviewResponse)
+def give_review(
+    review_data: ReviewCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(JobApplication)
-        .filter(JobApplication.worker_id == current_user.id)
-        .all()
+    if review_data.rating < 1 or review_data.rating > 5:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="রেটিং ১ থেকে ৫ এর মধ্যে হতে হবে",
+        )
+
+    job = db.query(Job).filter(Job.id == review_data.job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="কাজটি পাওয়া যায়নি"
+        )
+
+    if job.status != JobStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="কাজ সম্পন্ন হওয়ার আগে রিভিউ দেওয়া যাবে না",
+        )
+
+    if current_user.id not in [job.employer_id, job.worker_id]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="এই কাজের অংশীদার ছাড়া রিভিউ দেওয়া সম্ভব নয়",
+        )
+
+    new_review = Review(
+        job_id=review_data.job_id,
+        reviewer_id=current_user.id,
+        target_user_id=review_data.target_user_id,
+        rating=review_data.rating,
+        comment=review_data.comment,
     )
 
+    db.add(new_review)
+    db.commit()
+    db.refresh(new_review)
+    return new_review
 
-# ৬. ড্যাশবোর্ড: লেনদেনের ইতিহাস (Payment History)
-@router.get("/me/transactions", response_model=List[TransactionResponse])
-def get_my_transactions(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    return (
-        db.query(Transaction)
-        .filter(Transaction.receiver_id == current_user.id)
-        .all()
-    )
+
+# ৭. নির্দিষ্ট ইউজারের পাওয়া সমস্ত রিভিউ এবং গড় রেটিং দেখা
+@router.get("/{user_id}/reviews")
+def get_user_reviews(user_id: int, db: Session = Depends(get_db)):
+    reviews = db.query(Review).filter(Review.target_user_id == user_id).all()
+    if not reviews:
+        return {"target_user_id": user_id, "average_rating": 0.0, "total_reviews": 0, "reviews": []}
+
+    avg_rating = sum(r.rating for r in reviews) / len(reviews)
+    return {
+        "target_user_id": user_id,
+        "average_rating": round(avg_rating, 2),
+        "total_reviews": len(reviews),
+        "reviews": reviews,
+    }
