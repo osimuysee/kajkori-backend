@@ -1,9 +1,12 @@
 import random
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+
 from app.auth import create_access_token, get_current_user
 from app.database import get_db
+from app.limiter import limiter
 from app.models import Job, JobApplication, Transaction, User, UserRole
 from app.schemas import (
     ApplicationResponse,
@@ -19,27 +22,32 @@ from app.services.sms import send_sms
 router = APIRouter(prefix="/api/v1/users", tags=["User & Dashboard"])
 
 
-# ১. OTP পাঠানো (Database + Real SMS)
+# ১. OTP পাঠানো (Rate Limited + Database + Real SMS)
 @router.post("/send-otp")
-async def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
-    if len(request.phone) < 11:
+@limiter.limit("3/minute")
+async def send_otp(
+    request: Request,
+    otp_data: OTPRequest,
+    db: Session = Depends(get_db)
+):
+    if len(otp_data.phone) < 11:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন"
         )
 
     generated_otp = str(random.randint(1000, 9999))
-    user = db.query(User).filter(User.phone == request.phone).first()
+    user = db.query(User).filter(User.phone == otp_data.phone).first()
 
     selected_role = (
         UserRole.EMPLOYER
-        if request.role and request.role.lower() == "employer"
+        if otp_data.role and otp_data.role.lower() == "employer"
         else UserRole.WORKER
     )
 
     if not user:
         user = User(
-            phone=request.phone, role=selected_role, otp_code=generated_otp
+            phone=otp_data.phone, role=selected_role, otp_code=generated_otp
         )
         db.add(user)
     else:
@@ -47,13 +55,13 @@ async def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
 
     db.commit()
 
-    # SMS Gateway দিয়ে OTP পাঠানো
+    # SMS Gateway দিয়ে OTP পাঠানো
     sms_text = f"KajKori প্ল্যাটফর্মে আপনার ভেরিফিকেশন কোড (OTP): {generated_otp}"
-    await send_sms(request.phone, sms_text)
+    await send_sms(otp_data.phone, sms_text)
 
     return {
         "status": "success",
-        "message": f"OTP sent to {request.phone}",
+        "message": f"OTP sent to {otp_data.phone}",
         "debug_otp": generated_otp,
     }
 
