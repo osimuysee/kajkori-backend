@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>শ্রমিক রেজিস্ট্রেশন - কাজকরি</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Hind Siliguri', sans-serif; } </style>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyCXD9-SYAqnmatYe81M9wBeSB4wjJGFAZQ",
+        authDomain: "kajkori-8a07e.firebaseapp.com",
+        projectId: "kajkori-8a07e",
+        storageBucket: "kajkori-8a07e.firebasestorage.app",
+        messagingSenderId: "594029245687",
+        appId: "1:594029245687:web:d2364820ce6be9d4104ff2",
+        measurementId: "G-K4NH7TW7D9"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+      const auth = firebase.auth();
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 flex items-center justify-center">
+
+    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg border w-full max-w-lg my-6">
+        <div class="text-center mb-6">
+            <a href="index.html" class="text-2xl font-bold text-blue-600">🛠️ কাজ<span class="text-emerald-500">করি</span></a>
+            <h2 class="text-lg font-bold text-gray-800 mt-2">শ্রমিক হিসেবে রেজিস্ট্রেশন করুন</h2>
+            <p class="text-xs text-gray-500">সঠিক তথ্য দিয়ে ফর্মটি পূরণ করুন</p>
+        </div>
+
+        <form id="workerRegisterForm" onsubmit="handleRegistration(event)" class="space-y-4">
+            <!-- নাম -->
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">পূর্ণ নাম *</label>
+                <input type="text" id="workerName" required placeholder="যেমন: মো: রফিকুল ইসলাম" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
+            </div>
+
+            <!-- ফোন নম্বর -->
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">মোবাইল নম্বর *</label>
+                <input type="tel" id="workerPhone" required placeholder="017XXXXXXXX" pattern="^(01)[3-9][0-9]{8}$" title="১১ ডিজিটের সঠিক বাংলাদেশী মোবাইল নম্বর দিন" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
+            </div>
+
+            <!-- কাজের ক্যাটাগরি -->
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">কাজের ধরন / ক্যাটাগরি *</label>
+                <select id="workerCategory" required class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
+                    <option value="">ক্যাটাগরি নির্বাচন করুন</option>
+                    <option value="ইলেকট্রিশিয়ান">ইলেকট্রিশিয়ান</option>
+                    <option value="প্লাম্বার">প্লাম্বার (পাইপ মিস্ত্রি)</option>
+                    <option value="রাজমিস্ত্রি">রাজমিস্ত্রি</option>
+                    <option value="রঙ মিস্ত্রি">রঙ মিস্ত্রি</option>
+                    <option value="কাঠ মিস্ত্রি">কাঠ মিস্ত্রি</option>
+                    <option value="এসি ও ফ্রিজ টেকনিশিয়ান">এসি ও ফ্রিজ টেকনিশিয়ান</option>
+                    <option value="গাড়ি ড্রাইভার">গাড়ি ড্রাইভার</option>
+                    <option value="ক্লিনার">ক্লিনার</option>
+                    <option value="অন্যান্য">অন্যান্য</option>
+                </select>
+            </div>
+
+            <!-- এলাকা/লোকেশন -->
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">আপনার এলাকা / ঠিকানা *</label>
+                <input type="text" id="workerArea" required placeholder="যেমন: কেন্টনমেন্ট, কুমিল্লা" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
+            </div>
+
+            <!-- দৈনিক মজুরি -->
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">দৈনিক আনুমানিক মজুরি (টাকা) *</label>
+                <input type="number" id="workerDailyRate" required placeholder="যেমন: ৮০০" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
+            </div>
+
+            <!-- প্রোফাইল ছবি আপলোড -->
+            <div>
+                <label class="block text-xs font-bold text-gray-700 mb-1">প্রোফাইল ছবি আপলোড করুন *</label>
+                <input type="file" id="workerPhoto" accept="image/*" required class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+            </div>
+
+            <!-- সাবমিট বাটন -->
+            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition text-sm shadow-md mt-2">
+                রেজিস্ট্রেশন সম্পূর্ণ করুন
+            </button>
+        </form>
+
+        <div class="text-center mt-4">
+            <a href="index.html" class="text-xs text-gray-500 hover:underline">← হোমপেজে ফিরে যান</a>
+        </div>
+    </div>
+
+    <script>
+        const IMGBB_API_KEY = "525a3f39773783e5f9783b26bd050d47";
+
+        async function handleRegistration(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            
+            const name = document.getElementById('workerName').value.trim();
+            const phone = document.getElementById('workerPhone').value.trim();
+            const category = document.getElementById('workerCategory').value;
+            const area = document.getElementById('workerArea').value.trim();
+            const dailyRate = document.getElementById('workerDailyRate').value;
+            const photoFile = document.getElementById('workerPhoto').files[0];
+
+            if (!photoFile) {
+                alert("অনুগ্রহ করে একটি ছবি সিলেক্ট করুন!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "ছবি আপলোড হচ্ছে...";
+
+            try {
+                // ১. ImgBB-তে ছবি আপলোড
+                const formData = new FormData();
+                formData.append("image", photoFile);
+
+                const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                    method: "POST",
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error("ছবি আপলোড ব্যর্থ হয়েছে!");
+                }
+
+                const photoURL = result.data.url;
+                btn.innerText = "ডাটা সেভ হচ্ছে...";
+
+                // ২. ফায়ারস্টোর ডাটাবেজে তথ্য সেভ করা
+                const currentUser = auth.currentUser;
+                await db.collection('workers').add({
+                    uid: currentUser ? currentUser.uid : null,
+                    name: name,
+                    phone: phone,
+                    category: category,
+                    area: area,
+                    dailyRate: Number(dailyRate),
+                    photoURL: photoURL,
+                    status: 'pending',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                alert("🎉 আপনার রেজিস্ট্রেশন সফলভাবে জমা হয়েছে!");
+                window.location.href = "index.html";
+
+            } catch (error) {
+                console.error(error);
+                alert("❌ এরর: " + error.message);
+                btn.disabled = false;
+                btn.innerText = "রেজিস্ট্রেশন সম্পূর্ণ করুন";
+            }
+        }
+    </script>
+</body>
+</html>
