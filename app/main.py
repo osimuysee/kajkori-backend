@@ -1,8 +1,8 @@
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTTPException
+from fastapi.responses import FileResponse
 
 from app.database import Base, engine
 from app.routers.users import router as users_router
