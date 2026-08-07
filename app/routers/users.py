@@ -26,11 +26,10 @@ router = APIRouter(prefix="/api/v1/users", tags=["User & Dashboard"])
 @router.post("/send-otp")
 @limiter.limit("3/minute")
 async def send_otp(
-    http_request: Request,
+    request: Request,
     otp_data: OTPRequest,
     db: Session = Depends(get_db)
 ):
-    # ১১ ডিজিট চেক
     if len(otp_data.phone) < 11:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
