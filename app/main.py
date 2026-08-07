@@ -9,6 +9,7 @@ from app.limiter import limiter
 from app.routers.ivr import router as ivr_router
 from app.routers.jobs import router as jobs_router
 from app.routers.users import router as users_router
+from app.routers.wallet import router as wallet_router
 
 # ডাটাবেজ টেবিল আপডেট ও মিসিং কলাম অটো-চেক
 try:
@@ -49,6 +50,7 @@ app.add_middleware(
 # রাউটার যুক্ত করা
 app.include_router(users_router)
 app.include_router(jobs_router)
+app.include_router(wallet_router)
 app.include_router(ivr_router)
 
 
