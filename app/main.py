@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +19,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ১. CORS Middleware (HTML/JavaScript থেকে ব্যাকএন্ডের API কলের অনুমতি দেওয়ার জন্য)
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,24 +28,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ২. সকল রাউটার যুক্ত করা
+# সকল রাউটার
 app.include_router(users_router)
 app.include_router(jobs_router)
 app.include_router(wallet_router)
 app.include_router(dashboard_router)
 
+# Static Files Path (Absolute Path Resolution)
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+INDEX_FILE = STATIC_DIR / "index.html"
 
-# ৩. HTML/CSS/JS সরাসরি সার্ভ করার ব্যবস্থা
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    @app.get("/", include_in_schema=False)
-    def read_root():
-        index_path = os.path.join("static", "index.html")
-        if os.path.exists(index_path):
-            return FileResponse(index_path)
-        return {"message": "KajKori API is running successfully!"}
-else:
-    @app.get("/", include_in_schema=False)
-    def read_root():
-        return {"message": "KajKori API is running successfully!"}
+@app.get("/", include_in_schema=False)
+def read_root():
+    if INDEX_FILE.exists():
+        return FileResponse(INDEX_FILE)
+    return {
+        "message": "KajKori API is running, but static/index.html was not found!",
+        "checked_path": str(INDEX_FILE)
+    }
