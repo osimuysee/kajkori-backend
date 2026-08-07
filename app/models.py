@@ -41,8 +41,14 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     role = Column(Enum(UserRole), default=UserRole.WORKER)
     full_name = Column(String, nullable=True)
-    location_district = Column(String, nullable=True)
-    location_upazila = Column(String, nullable=True)
+    
+    # পূর্ণাঙ্গ ৫-স্তরের লোকেশন
+    location_division = Column(String, nullable=True)       # বিভাগ
+    location_district = Column(String, nullable=True)       # জেলা
+    location_upazila = Column(String, nullable=True)        # উপজেলা / থানা
+    location_union = Column(String, nullable=True)          # ইউনিয়ন / ওয়ার্ড
+    location_village_area = Column(String, nullable=True)   # গ্রাম / মহল্লা / এলাকা
+
     wallet_balance = Column(Float, default=0.0)
 
 
@@ -56,8 +62,14 @@ class Job(Base):
     description = Column(Text, nullable=True)
     category = Column(String, nullable=True)
     budget = Column(Float, nullable=False)
-    location_district = Column(String, nullable=True)
-    location_upazila = Column(String, nullable=True)
+
+    # পূর্ণাঙ্গ ৫-স্তরের লোকেশন
+    location_division = Column(String, nullable=True)       # বিভাগ
+    location_district = Column(String, nullable=True)       # জেলা
+    location_upazila = Column(String, nullable=True)        # উপজেলা / থানা
+    location_union = Column(String, nullable=True)          # ইউনিয়ন / ওয়ার্ড
+    location_village_area = Column(String, nullable=True)   # গ্রাম / মহল্লা / এলাকা
+
     status = Column(Enum(JobStatus), default=JobStatus.OPEN)
 
 

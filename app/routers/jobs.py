@@ -43,8 +43,11 @@ def create_job(
         description=job_data.description,
         category=job_data.category,
         budget=job_data.budget,
+        location_division=job_data.location_division,
         location_district=job_data.location_district,
         location_upazila=job_data.location_upazila,
+        location_union=job_data.location_union,
+        location_village_area=job_data.location_village_area,
         status=JobStatus.OPEN,
     )
     db.add(new_job)
@@ -53,13 +56,16 @@ def create_job(
     return new_job
 
 
-# ২. অ্যাডভান্সড সার্চ ও ফিল্টারিং সহ সব কাজের তালিকা (Worker & Public)
+# ২. নিখুঁত ফিল্টারিং ও সার্চ সহ সব কাজের তালিকা (গ্রাম থেকে শহর)
 @router.get("/", response_model=List[JobResponse])
 def get_jobs(
     search: Optional[str] = None,
     category: Optional[str] = None,
+    division: Optional[str] = None,
     district: Optional[str] = None,
     upazila: Optional[str] = None,
+    union: Optional[str] = None,
+    village_area: Optional[str] = None,
     min_budget: Optional[float] = None,
     max_budget: Optional[float] = None,
     status_filter: Optional[JobStatus] = JobStatus.OPEN,
@@ -73,11 +79,20 @@ def get_jobs(
     if category:
         query = query.filter(Job.category.ilike(f"%{category}%"))
 
+    if division:
+        query = query.filter(Job.location_division.ilike(f"%{division}%"))
+
     if district:
         query = query.filter(Job.location_district.ilike(f"%{district}%"))
 
     if upazila:
         query = query.filter(Job.location_upazila.ilike(f"%{upazila}%"))
+
+    if union:
+        query = query.filter(Job.location_union.ilike(f"%{union}%"))
+
+    if village_area:
+        query = query.filter(Job.location_village_area.ilike(f"%{village_area}%"))
 
     if min_budget is not None:
         query = query.filter(Job.budget >= min_budget)
@@ -85,12 +100,17 @@ def get_jobs(
     if max_budget is not None:
         query = query.filter(Job.budget <= max_budget)
 
+    # সাধারণ সার্চ বার: টাইটেল, বিবরণ, জেলা, উপজেলা, ইউনিয়ন বা গ্রামের নাম যাই লিখে সার্চ করা হোক তা খুঁজে বের করবে
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(
             or_(
                 Job.title.ilike(search_pattern),
                 Job.description.ilike(search_pattern),
+                Job.location_district.ilike(search_pattern),
+                Job.location_upazila.ilike(search_pattern),
+                Job.location_union.ilike(search_pattern),
+                Job.location_village_area.ilike(search_pattern),
             )
         )
 

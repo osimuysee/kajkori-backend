@@ -109,7 +109,7 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# ৪. নিজের প্রোফাইল আপডেট করা
+# ৪. নিজের প্রোফাইল আপডেট করা (বিভাগ, জেলা, উপজেলা, ইউনিয়ন, গ্রাম সহ)
 @router.put("/me", response_model=UserResponse)
 def update_profile(
     profile_data: ProfileUpdate,
@@ -118,10 +118,16 @@ def update_profile(
 ):
     if profile_data.full_name is not None:
         current_user.full_name = profile_data.full_name
+    if profile_data.location_division is not None:
+        current_user.location_division = profile_data.location_division
     if profile_data.location_district is not None:
         current_user.location_district = profile_data.location_district
     if profile_data.location_upazila is not None:
         current_user.location_upazila = profile_data.location_upazila
+    if profile_data.location_union is not None:
+        current_user.location_union = profile_data.location_union
+    if profile_data.location_village_area is not None:
+        current_user.location_village_area = profile_data.location_village_area
 
     db.commit()
     db.refresh(current_user)
@@ -185,7 +191,7 @@ def give_review(
     return new_review
 
 
-# ৭. নির্দিষ্ট ইউজারের পাওয়া সমস্ত রিভিউ এবং গড় রেটিং দেখা
+# ৭. নির্দিষ্ট ইউজারের রিভিউ তালিকা ও গড় রেটিং
 @router.get("/{user_id}/reviews")
 def get_user_reviews(user_id: int, db: Session = Depends(get_db)):
     reviews = db.query(Review).filter(Review.target_user_id == user_id).all()

@@ -25,8 +25,11 @@ class UserResponse(BaseModel):
     is_verified: bool
     role: UserRole
     full_name: Optional[str] = None
+    location_division: Optional[str] = None
     location_district: Optional[str] = None
     location_upazila: Optional[str] = None
+    location_union: Optional[str] = None
+    location_village_area: Optional[str] = None
     wallet_balance: Optional[float] = 0.0
 
     class Config:
@@ -35,8 +38,11 @@ class UserResponse(BaseModel):
 
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
+    location_division: Optional[str] = None
     location_district: Optional[str] = None
     location_upazila: Optional[str] = None
+    location_union: Optional[str] = None
+    location_village_area: Optional[str] = None
 
 
 class ReviewCreate(BaseModel):
@@ -63,8 +69,11 @@ class JobCreate(BaseModel):
     description: Optional[str] = None
     budget: float
     category: Optional[str] = None
+    location_division: Optional[str] = None
     location_district: Optional[str] = None
-    location_upazila: str
+    location_upazila: Optional[str] = None
+    location_union: Optional[str] = None
+    location_village_area: Optional[str] = None
 
 
 class JobResponse(BaseModel):
@@ -74,9 +83,12 @@ class JobResponse(BaseModel):
     title: str
     description: Optional[str] = None
     budget: float
+    category: Optional[str] = None
+    location_division: Optional[str] = None
     location_district: Optional[str] = None
     location_upazila: Optional[str] = None
-    category: Optional[str] = None
+    location_union: Optional[str] = None
+    location_village_area: Optional[str] = None
     status: JobStatus
 
     class Config:
