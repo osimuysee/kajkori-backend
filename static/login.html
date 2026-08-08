@@ -166,7 +166,7 @@
             window.confirmationResult.confirm(code)
                 .then((result) => {
                     alert("ফোন নম্বর সফলভাবে ভেরিফাই হয়েছে!");
-                    window.location.href = "index.html";
+                    window.location.href = "/";
                 })
                 .catch((error) => {
                     alert("ভুল ওটিপি অথবা কোডটি মেয়ারাদোত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।");
@@ -181,7 +181,7 @@
             firebase.auth().signInWithPopup(provider)
                 .then(() => {
                     alert("গুগল দিয়ে সফলভাবে লগইন হয়েছে!");
-                    window.location.href = "index.html";
+                    window.location.href = "/";
                 })
                 .catch(error => alert("এরর: " + error.message));
         }
@@ -192,7 +192,7 @@
             firebase.auth().signInWithPopup(provider)
                 .then(() => {
                     alert("ফেসবুক দিয়ে সফলভাবে লগইন হয়েছে!");
-                    window.location.href = "index.html";
+                    window.location.href = "/";
                 })
                 .catch(error => alert("এরর: " + error.message));
         }
@@ -206,7 +206,7 @@
             firebase.auth().signInWithEmailAndPassword(email, password)
                 .then(() => {
                     alert("লগইন সফল হয়েছে!");
-                    window.location.href = "index.html";
+                    window.location.href = "/";
                 })
                 .catch(error => alert("এরর: " + error.message));
         }

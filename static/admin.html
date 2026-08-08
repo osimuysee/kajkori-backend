@@ -186,7 +186,7 @@
             } else if (!user.email || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
                 alert("❌ আপনার এই অ্যাডমিন প্যানেলে প্রবেশ করার অনুমতি নেই!");
                 signOut(auth).then(() => {
-                    window.location.href = "index.html";
+                    window.location.href = "/";
                 });
             } else {
                 initDashboard();

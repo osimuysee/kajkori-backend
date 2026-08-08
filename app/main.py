@@ -41,8 +41,9 @@ STATIC_DIR = BASE_DIR / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# ১. হোম পেজ রাউট (/)
+# ১. হোম পেজ রাউট (/ এবং /index.html)
 @app.get("/", include_in_schema=False)
+@app.get("/index.html", include_in_schema=False)
 def read_root():
     index_file = STATIC_DIR / "index.html"
     if index_file.exists():
