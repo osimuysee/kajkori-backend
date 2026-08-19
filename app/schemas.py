@@ -16,7 +16,10 @@ class OTPVerify(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
-    user: dict
+    user: "UserResponse"
+
+    class Config:
+        from_attributes = True
 
 
 class UserResponse(BaseModel):
