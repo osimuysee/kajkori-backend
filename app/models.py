@@ -1,7 +1,18 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Numeric,
+)
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -32,6 +43,12 @@ class TransactionStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class TransactionType(str, enum.Enum):
+    DEPOSIT = "deposit"
+    WITHDRAW = "withdraw"
+    ESCROW = "escrow"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -43,7 +60,7 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     role = Column(Enum(UserRole), default=UserRole.WORKER)
     full_name = Column(String, nullable=True)
-    
+
     # পূর্ণাঙ্গ ৫-স্তরের লোকেশন
     location_division = Column(String, nullable=True)       # বিভাগ
     location_district = Column(String, nullable=True)       # জেলা
@@ -51,7 +68,8 @@ class User(Base):
     location_union = Column(String, nullable=True)          # ইউনিয়ন / ওয়ার্ড
     location_village_area = Column(String, nullable=True)   # গ্রাম / মহল্লা / এলাকা
 
-    wallet_balance = Column(Float, default=0.0)
+    wallet_balance = Column(Numeric(12, 2), default=0.00)
+    reserved_balance = Column(Numeric(12, 2), default=0.00)
 
 
 class Job(Base):
@@ -63,7 +81,7 @@ class Job(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     category = Column(String, nullable=True)
-    budget = Column(Float, nullable=False)
+    budget = Column(Numeric(12, 2), nullable=False)
 
     # পূর্ণাঙ্গ ৫-স্তরের লোকেশন
     location_division = Column(String, nullable=True)       # বিভাগ
@@ -81,7 +99,7 @@ class JobApplication(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
     worker_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    proposed_rate = Column(Float, nullable=True)
+    proposed_rate = Column(Numeric(12, 2), nullable=True)
     cover_note = Column(Text, nullable=True)
     status = Column(Enum(ApplicationStatus), default=ApplicationStatus.PENDING)
 
@@ -92,9 +110,15 @@ class Transaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=True)
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    amount = Column(Float, nullable=False)
-    payment_method = Column(String, nullable=False)
-    status = Column(Enum(TransactionStatus), default=TransactionStatus.SUCCESS)
+    amount = Column(Numeric(12, 2), nullable=False)
+    type = Column(Enum(TransactionType), default=TransactionType.DEPOSIT)
+    payment_provider = Column(String, nullable=True)
+    account_number = Column(String, nullable=True)
+    external_trx_id = Column(String, nullable=True)
+    idempotency_key = Column(String, nullable=True)
+    status = Column(Enum(TransactionStatus), default=TransactionStatus.PENDING)
+    is_released = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Review(Base):
