@@ -1,4 +1,5 @@
-import random
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -37,7 +38,8 @@ async def send_otp(
                 detail="সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন"
             )
 
-        generated_otp = str(random.randint(1000, 9999))
+        # ৬-ডিজিট crypto-secure OTP
+        generated_otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
         user = db.query(User).filter(User.phone == otp_data.phone).first()
 
         selected_role = (
@@ -46,23 +48,35 @@ async def send_otp(
             else UserRole.WORKER
         )
 
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+
         if not user:
             user = User(
-                phone=otp_data.phone, role=selected_role, otp_code=generated_otp
+                phone=otp_data.phone, role=selected_role, otp_code=generated_otp,
+                otp_expires_at=expires_at, otp_attempts=0
             )
             db.add(user)
         else:
             user.otp_code = generated_otp
+            user.otp_expires_at = expires_at
+            user.otp_attempts = 0
 
         db.commit()
 
         sms_text = f"KajKori প্ল্যাটফর্মে আপনার ভেরিফিকেশন কোড (OTP): {generated_otp}"
-        await send_sms(otp_data.phone, sms_text)
+        # send_sms should return success/failure — if it fails, rollback
+        sms_ok = await send_sms(otp_data.phone, sms_text)
+        if sms_ok is False:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="SMS gateway failed to send OTP"
+            )
 
+        # Do NOT return debug_otp in responses — never expose in production
         return {
             "status": "success",
             "message": f"OTP sent to {otp_data.phone}",
-            "debug_otp": generated_otp,
         }
     except HTTPException as http_ex:
         raise http_ex
@@ -84,13 +98,35 @@ def verify_otp(request: OTPVerify, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
+    # Check expiry
+    now = datetime.now(timezone.utc)
+    if not user.otp_code or not user.otp_expires_at or user.otp_expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired or not found"
+        )
+
+    # Check attempts
+    if user.otp_attempts is None:
+        user.otp_attempts = 0
+
+    if user.otp_attempts >= 5:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many invalid OTP attempts"
+        )
+
     if user.otp_code != request.otp_code:
+        user.otp_attempts += 1
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP code"
         )
 
+    # Successful verification
     user.is_verified = True
     user.otp_code = None
+    user.otp_expires_at = None
+    user.otp_attempts = 0
     db.commit()
     db.refresh(user)
 
@@ -168,7 +204,7 @@ def give_review(
     if job.status != JobStatus.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="কাজ সম্পন্ন হওয়ার আগে রিভিউ দেওয়া যাবে না",
+            detail="কাজ সম্পন্ন হওয়ার আগে রিভি��� দেওয়া যাবে না",
         )
 
     if current_user.id not in [job.employer_id, job.worker_id]:
