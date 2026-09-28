@@ -1,12 +1,20 @@
-fastapi
-uvicorn
-sqlalchemy
-python-jose[cryptography]
-PyJWT
-passlib[bcrypt]
-python-multipart
-python-dotenv
-psycopg2-binary
-httpx
-pydantic
-slowapi
+fastapi>=0.110
+uvicorn>=0.29
+sqlalchemy>=2.0,<3
+alembic>=1.13
+psycopg2-binary>=2.9
+pydantic>=2.6,<3
+email-validator>=2.1
+python-multipart>=0.0.9
+python-dotenv>=1.0
+httpx>=0.27
+slowapi>=0.1.9
+
+# Password hashing: passlib 1.7.4 breaks with newer bcrypt, so bcrypt is pinned
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+
+# JWT: keep only the one your code actually imports.
+# "import jwt" -> PyJWT | "from jose import ..." -> python-jose
+PyJWT>=2.8
+python-jose[cryptography]>=3.3
