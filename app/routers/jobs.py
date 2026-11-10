@@ -212,17 +212,23 @@ def assign_worker(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    job = db.query(Job).filter(Job.id == job_id).first()
+    # Row lock (PostgreSQL) so two assign requests cannot both pass the checks.
+    job = db.query(Job).filter(Job.id == job_id).with_for_update().first()
     if not job or job.employer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="কাজ বরাদ্দ করার অনুমতি নেই",
         )
 
-    job.worker_id = worker_id
-    job.status = JobStatus.ASSIGNED
+    if job.status != JobStatus.OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="এই কাজটি আর বরাদ্দের জন্য উন্মুক্ত নয়",
+        )
 
-    app = (
+    # Only somebody who applied can be assigned. Without this an employer could
+    # attach ANY user id to a job and later release "payment" against them.
+    application = (
         db.query(JobApplication)
         .filter(
             JobApplication.job_id == job_id,
@@ -230,8 +236,15 @@ def assign_worker(
         )
         .first()
     )
-    if app:
-        app.status = ApplicationStatus.ACCEPTED
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="এই কর্মী এই কাজে আবেদন করেননি",
+        )
+
+    job.worker_id = worker_id
+    job.status = JobStatus.ASSIGNED
+    application.status = ApplicationStatus.ACCEPTED
 
     db.commit()
     return {"status": "success", "message": "কর্মীকে সফলভাবে কাজটি বরাদ্দ করা হয়েছে"}
@@ -244,11 +257,19 @@ def complete_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    job = db.query(Job).filter(Job.id == job_id).first()
+    job = db.query(Job).filter(Job.id == job_id).with_for_update().first()
     if not job or job.employer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="কাজ সম্পূর্ণ ঘোষণা করার অনুমতি নেই",
+        )
+
+    # Only a job that has a worker on it can be completed (open, cancelled or
+    # already completed jobs cannot).
+    if job.status != JobStatus.ASSIGNED or not job.worker_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="শুধুমাত্র কর্মীকে বরাদ্দ করা কাজ সম্পন্ন ঘোষণা করা যাবে",
         )
 
     job.status = JobStatus.COMPLETED

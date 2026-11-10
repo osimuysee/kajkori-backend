@@ -3,3 +3,14 @@
 __pycache__/
 alembic/versions/__pycache__/
 .vscode/
+
+# local tooling
+.venv/
+venv/
+.pytest_cache/
+.env.*
+!.env.example
+uploads/
+
+# Internal review notes: kept local while this repository is public.
+docs/AUDIT.md

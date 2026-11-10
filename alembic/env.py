@@ -7,6 +7,7 @@ from alembic import context
 # 1. Models and Base import
 from app.database import Base
 import app.models  # noqa
+import app.models_marketplace  # noqa
 
 # 2. .env file load
 load_dotenv()
