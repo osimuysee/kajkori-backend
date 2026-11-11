@@ -140,21 +140,21 @@
     <!-- Firebase v10+ ES Module Approach for Long-term Stability -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { 
-            getFirestore, 
-            collection, 
-            query, 
-            orderBy, 
-            limit, 
-            onSnapshot, 
-            doc, 
-            updateDoc, 
-            deleteDoc 
+        import {
+            getFirestore,
+            collection,
+            query,
+            orderBy,
+            limit,
+            onSnapshot,
+            doc,
+            updateDoc,
+            deleteDoc
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { 
-            getAuth, 
-            onAuthStateChanged, 
-            signOut 
+        import {
+            getAuth,
+            onAuthStateChanged,
+            signOut
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
         // Firebase Configuration
@@ -173,22 +173,100 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
+        // NOTE: this check runs in the visitor's browser, so it only decides what
+        // the page SHOWS. The real protection has to be the Firestore security
+        // rules (docs/AUDIT.md #9).
         const ADMIN_EMAIL = "admin@kajkori.com";
 
         // Local Memory Caching for fast search & filtering
         let allBookings = [];
         let allWorkers = [];
+        let dashboardStarted = false;
+
+        // ---- Helpers ---------------------------------------------------------
+        // Bookings and worker registrations are typed in by the public. They are
+        // ALWAYS escaped before going into HTML: without this, a "name" such as
+        // <img onerror=...> would run as code inside the logged-in admin page.
+        function escapeHtml(value) {
+            return String(value === undefined || value === null ? '' : value).replace(/[&<>"'`]/g, (ch) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;'
+            }[ch]));
+        }
+
+        // Only http(s) image links are used; anything else (javascript:, data:) is dropped.
+        function safeHttpUrl(value) {
+            try {
+                const url = new URL(String(value || ''));
+                return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+            } catch (e) {
+                return '';
+            }
+        }
+
+        // Worker records were written by different versions of the registration
+        // form, with different field names. Read all of them, so a worker never
+        // shows up as "-" just because the form that saved it was newer/older.
+        function firstFilled(...values) {
+            for (const value of values) {
+                if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+            }
+            return '';
+        }
+        function workerName(w) { return String(firstFilled(w.name, w.fullName)); }
+        function workerArea(w) {
+            return String(firstFilled(w.area, [w.village, w.upazila, w.district, w.division].filter(Boolean).join(', ')));
+        }
+        function workerCharge(w) { return firstFilled(w.charge, w.dailyRate, w.perTaskCharge); }
+        function workerPhoto(w) { return safeHttpUrl(w.image) || safeHttpUrl(w.photoURL) || safeHttpUrl(w.photo); }
+
+        // tel: links may only contain digits and a leading +.
+        function telHref(phone) {
+            const digits = String(phone || '').replace(/[০-৯]/g, (d) => '০১২৩৪৫৬৭৮৯'.indexOf(d)).replace(/[^0-9+]/g, '');
+            return digits ? `tel:${digits}` : '';
+        }
+
+        function phoneCell(phone) {
+            const href = telHref(phone);
+            if (!href) return escapeHtml(phone || '-');
+            return `<a href="${escapeHtml(href)}" class="text-blue-600 underline hover:text-blue-800">${escapeHtml(phone)}</a>`;
+        }
+
+        // The public booking form saves the status in Bangla ("পেন্ডিং"); this
+        // page works with Pending / Accepted / Completed / Cancelled.
+        function normalizeBookingStatus(status) {
+            const known = ['Pending', 'Accepted', 'Completed', 'Cancelled'];
+            return known.includes(status) ? status : 'Pending';
+        }
+
+        function isWorkerVerified(worker) {
+            const status = String(worker.status || '').toLowerCase();
+            return status === '' || status === 'approved' || status === 'verified';
+        }
+
+        // Inline placeholder (the old via.placeholder.com service no longer
+        // exists, and its onerror handler retried forever).
+        const PLACEHOLDER_IMG = "data:image/svg+xml," + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#e2e8f0"/><circle cx="20" cy="15" r="7" fill="#94a3b8"/><rect x="8" y="25" width="24" height="15" rx="7" fill="#94a3b8"/></svg>'
+        );
+
+        function tableMessage(tbodyId, colspan, message, isError = false) {
+            document.getElementById(tbodyId).innerHTML =
+                `<tr><td colspan="${colspan}" class="p-6 text-center ${isError ? 'text-rose-600 font-semibold' : 'text-slate-400'}">${escapeHtml(message)}</td></tr>`;
+        }
 
         // Auth Protection Check
         onAuthStateChanged(auth, (user) => {
             if (!user) {
-                window.location.href = "login.html";
+                window.location.href = "login.html?next=admin";
             } else if (!user.email || user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
                 alert("❌ আপনার এই অ্যাডমিন প্যানেলে প্রবেশ করার অনুমতি নেই!");
                 signOut(auth).then(() => {
-                    window.location.href = "/";
+                    window.location.href = "index.html";
                 });
-            } else {
+            } else if (!dashboardStarted) {
+                // onAuthStateChanged can fire more than once (token refresh):
+                // start the listeners only once.
+                dashboardStarted = true;
                 initDashboard();
             }
         });
@@ -217,8 +295,9 @@
 
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    if (data.status === 'Pending' || !data.status) pendingCount++;
-                    allBookings.push({ id: doc.id, ...data });
+                    const status = normalizeBookingStatus(data.status);
+                    if (status === 'Pending') pendingCount++;
+                    allBookings.push({ id: doc.id, ...data, status });
                 });
 
                 // Update Stats
@@ -228,6 +307,7 @@
                 renderBookings();
             }, (error) => {
                 console.error("Bookings load error: ", error);
+                tableMessage('bookingTableBody', 7, 'বুকিং তালিকা লোড করা যায়নি। অনুমতি (Firestore rules) ও ইন্টারনেট সংযোগ দেখুন।', true);
             });
         }
 
@@ -236,18 +316,15 @@
             const tbody = document.getElementById('bookingTableBody');
             const filterValue = document.getElementById('bookingFilter').value;
 
-            const filtered = allBookings.filter(b => {
-                if (filterValue === 'all') return true;
-                return (b.status || 'Pending') === filterValue;
-            });
+            const filtered = allBookings.filter(b => filterValue === 'all' || b.status === filterValue);
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">কোনো বুকিং রেকর্ড পাওয়া যায়নি</td></tr>`;
+                tableMessage('bookingTableBody', 7, 'কোনো বুকিং রেকর্ড পাওয়া যায়নি');
                 return;
             }
 
             tbody.innerHTML = filtered.map(b => {
-                let timeStr = 'সময় পাওয়া যায়নি';
+                let timeStr = 'সময় পাওয়া যায়নি';
                 if (b.createdAt && b.createdAt.toDate) {
                     timeStr = b.createdAt.toDate().toLocaleString('bn-BD', {
                         month: 'short', day: 'numeric', year: 'numeric',
@@ -255,17 +332,18 @@
                     });
                 }
 
+                const id = escapeHtml(b.id);
                 let statusBadge = '';
                 let actionButtons = '';
 
                 switch (b.status) {
                     case 'Accepted':
                         statusBadge = `<span class="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-semibold">গৃহীত</span>`;
-                        actionButtons = `<button data-action="status" data-id="${b.id}" data-status="Completed" class="bg-blue-600 text-white px-2.5 py-1 rounded-lg text-xs hover:bg-blue-700 transition">সম্পন্ন করুন</button>`;
+                        actionButtons = `<button data-action="status" data-id="${id}" data-status="Completed" class="bg-blue-600 text-white px-2.5 py-1 rounded-lg text-xs hover:bg-blue-700 transition">সম্পন্ন করুন</button>`;
                         break;
                     case 'Completed':
                         statusBadge = `<span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full text-xs font-semibold">সম্পন্ন</span>`;
-                        actionButtons = `<span class="text-xs text-slate-400">সম্পন্ন হয়েছে</span>`;
+                        actionButtons = `<span class="text-xs text-slate-400">সম্পন্ন হয়েছে</span>`;
                         break;
                     case 'Cancelled':
                         statusBadge = `<span class="bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full text-xs font-semibold">বাতিল</span>`;
@@ -274,22 +352,22 @@
                     default:
                         statusBadge = `<span class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-xs font-semibold">পেন্ডিং</span>`;
                         actionButtons = `
-                            <button data-action="status" data-id="${b.id}" data-status="Accepted" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs hover:bg-emerald-700 transition mr-1">একসেপ্ট</button>
-                            <button data-action="status" data-id="${b.id}" data-status="Cancelled" class="bg-rose-500 text-white px-2.5 py-1 rounded-lg text-xs hover:bg-rose-600 transition">বাতিল</button>
+                            <button data-action="status" data-id="${id}" data-status="Accepted" class="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs hover:bg-emerald-700 transition mr-1">একসেপ্ট</button>
+                            <button data-action="status" data-id="${id}" data-status="Cancelled" class="bg-rose-500 text-white px-2.5 py-1 rounded-lg text-xs hover:bg-rose-600 transition">বাতিল</button>
                         `;
                 }
 
                 return `
                     <tr class="hover:bg-slate-50 transition">
-                        <td class="p-3.5 text-slate-500 text-xs font-medium">${timeStr}</td>
-                        <td class="p-3.5 font-semibold text-slate-800">${b.customerName || '-'}</td>
-                        <td class="p-3.5"><a href="tel:${b.customerPhone}" class="text-blue-600 underline hover:text-blue-800">${b.customerPhone || '-'}</a></td>
-                        <td class="p-3.5 text-slate-600 max-w-xs truncate">${b.customerAddress || '-'}</td>
-                        <td class="p-3.5 font-medium text-emerald-600">${b.workerName || '-'}</td>
+                        <td class="p-3.5 text-slate-500 text-xs font-medium">${escapeHtml(timeStr)}</td>
+                        <td class="p-3.5 font-semibold text-slate-800">${escapeHtml(b.customerName || '-')}</td>
+                        <td class="p-3.5">${phoneCell(b.customerPhone)}</td>
+                        <td class="p-3.5 text-slate-600 max-w-xs truncate" title="${escapeHtml(b.customerAddress || '')}">${escapeHtml(b.customerAddress || '-')}</td>
+                        <td class="p-3.5 font-medium text-emerald-600">${escapeHtml(b.workerName || '-')}</td>
                         <td class="p-3.5">${statusBadge}</td>
                         <td class="p-3.5 text-right space-x-1">
                             ${actionButtons}
-                            <button data-action="delete-booking" data-id="${b.id}" class="text-slate-400 hover:text-rose-600 text-xs font-medium px-1.5 py-1 transition" title="মুছে ফেলুন">🗑️</button>
+                            <button data-action="delete-booking" data-id="${id}" class="text-slate-400 hover:text-rose-600 text-xs font-medium px-1.5 py-1 transition" title="মুছে ফেলুন">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -311,49 +389,71 @@
                 renderWorkers();
             }, (error) => {
                 console.error("Workers load error: ", error);
+                tableMessage('workerTableBody', 6, 'শ্রমিকদের তালিকা লোড করা যায়নি। অনুমতি (Firestore rules) ও ইন্টারনেট সংযোগ দেখুন।', true);
             });
         }
 
         // Render Workers Table with live search support
         function renderWorkers() {
             const tbody = document.getElementById('workerTableBody');
-            const searchQuery = document.getElementById('workerSearch').value.toLowerCase().trim();
+            // norm(): Bangla letters like য়/ড় exist in two identical-looking
+            // forms; compare everything in one form so search does not miss rows.
+            const norm = (text) => String(text === undefined || text === null ? '' : text).normalize('NFC').toLowerCase().trim();
+            const searchQuery = norm(document.getElementById('workerSearch').value);
 
             const filtered = allWorkers.filter(w => {
-                const name = (w.name || '').toLowerCase();
-                const category = (w.category || '').toLowerCase();
-                const area = (w.area || '').toLowerCase();
-                return name.includes(searchQuery) || category.includes(searchQuery) || area.includes(searchQuery);
+                return norm(workerName(w)).includes(searchQuery) || norm(w.category).includes(searchQuery) || norm(workerArea(w)).includes(searchQuery);
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">কোনো শ্রমিক পাওয়া যায়নি</td></tr>`;
+                tableMessage('workerTableBody', 6, 'কোনো শ্রমিক পাওয়া যায়নি');
                 return;
             }
 
             tbody.innerHTML = filtered.map(w => {
-                const img = w.image || 'https://via.placeholder.com/40';
+                const img = workerPhoto(w) || PLACEHOLDER_IMG;
+                const chargeValue = workerCharge(w);
+                const charge = chargeValue !== '' ? chargeValue : '0';
+                const id = escapeHtml(w.id);
+                const verified = isWorkerVerified(w);
+                const statusBadge = verified
+                    ? `<span class="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">✓ ভেরিফাইড</span>`
+                    : `<span class="text-[10px] font-semibold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">⏳ যাচাই বাকি</span>`;
+                const verifyButton = verified
+                    ? `<button data-action="set-worker-status" data-id="${id}" data-status="pending" class="text-slate-600 hover:text-slate-800 font-medium text-xs border border-slate-200 px-2.5 py-1 rounded-lg hover:bg-slate-50 transition mr-1">ভেরিফিকেশন বাতিল</button>`
+                    : `<button data-action="set-worker-status" data-id="${id}" data-status="approved" class="bg-emerald-600 text-white font-medium text-xs px-2.5 py-1 rounded-lg hover:bg-emerald-700 transition mr-1">ভেরিফাই করুন</button>`;
 
                 return `
                     <tr class="hover:bg-slate-50 transition">
-                        <td class="p-3.5 font-semibold text-slate-800">${w.name || '-'}</td>
-                        <td class="p-3.5">
-                            <div class="flex items-center gap-2">
-                                <img src="${img}" class="w-8 h-8 rounded-full object-cover border border-slate-200" onerror="this.src='https://via.placeholder.com/40'">
-                                <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium border border-blue-100">${w.category || '-'}</span>
+                        <td class="p-3.5 font-semibold text-slate-800">
+                            <div class="flex flex-col gap-1 items-start">
+                                <span>${escapeHtml(workerName(w) || '-')}</span>
+                                ${statusBadge}
                             </div>
                         </td>
-                        <td class="p-3.5 text-slate-600">${w.area || '-'}</td>
-                        <td class="p-3.5"><a href="tel:${w.phone}" class="text-blue-600 underline text-sm hover:text-blue-800">${w.phone || '-'}</a></td>
-                        <td class="p-3.5 font-bold text-emerald-600">৳${w.charge || '0'}</td>
-                        <td class="p-3.5 text-right">
-                            <button data-action="delete-worker" data-id="${w.id}" class="text-rose-600 hover:text-rose-700 font-medium text-xs border border-rose-200 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition">
+                        <td class="p-3.5">
+                            <div class="flex items-center gap-2">
+                                <img src="${escapeHtml(img)}" data-fallback="1" class="w-8 h-8 rounded-full object-cover border border-slate-200" alt="">
+                                <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md font-medium border border-blue-100">${escapeHtml(w.category || '-')}</span>
+                            </div>
+                        </td>
+                        <td class="p-3.5 text-slate-600">${escapeHtml(workerArea(w) || '-')}</td>
+                        <td class="p-3.5 text-sm">${phoneCell(w.phone)}</td>
+                        <td class="p-3.5 font-bold text-emerald-600">৳${escapeHtml(charge)}</td>
+                        <td class="p-3.5 text-right whitespace-nowrap">
+                            ${verifyButton}
+                            <button data-action="delete-worker" data-id="${id}" class="text-rose-600 hover:text-rose-700 font-medium text-xs border border-rose-200 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition">
                                 মুছে ফেলুন
                             </button>
                         </td>
                     </tr>
                 `;
             }).join('');
+
+            // Broken photo -> placeholder, once (no inline onerror, no retry loop).
+            tbody.querySelectorAll('img[data-fallback]').forEach((image) => {
+                image.addEventListener('error', () => { image.src = PLACEHOLDER_IMG; }, { once: true });
+            });
         }
 
         // Global Event Listeners for Filters & Table Actions
@@ -371,17 +471,21 @@
 
                 if (action === 'status') {
                     const newStatus = target.dataset.status;
+                    target.disabled = true;
                     try {
                         await updateDoc(doc(db, "bookings", id), { status: newStatus });
                     } catch (err) {
-                        alert("স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে: " + err.message);
+                        console.error("Booking status update failed: ", err);
+                        alert("স্ট্যাটাস আপডেট করা যায়নি। আবার চেষ্টা করুন।");
+                        target.disabled = false;
                     }
                 } else if (action === 'delete-booking') {
                     if (confirm('আপনি কি নিশ্চিত যে এই বুকিং হিস্ট্রিটি মুছে ফেলতে চান?')) {
                         try {
                             await deleteDoc(doc(db, "bookings", id));
                         } catch (err) {
-                            alert("মুছে ফেলতে সমস্যা হয়েছে: " + err.message);
+                            console.error("Booking delete failed: ", err);
+                            alert("মুছে ফেলা যায়নি। আবার চেষ্টা করুন।");
                         }
                     }
                 }
@@ -389,15 +493,29 @@
 
             // Worker Actions Click Handling
             document.getElementById('workerTableBody').addEventListener('click', async (e) => {
-                const target = e.target.closest('[data-action="delete-worker"]');
+                const target = e.target.closest('[data-action]');
                 if (!target) return;
 
+                const action = target.dataset.action;
                 const id = target.dataset.id;
-                if (confirm('আপনি কি এই শ্রমিককে তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?')) {
+
+                if (action === 'set-worker-status') {
+                    target.disabled = true;
                     try {
-                        await deleteDoc(doc(db, "workers", id));
+                        await updateDoc(doc(db, "workers", id), { status: target.dataset.status });
                     } catch (err) {
-                        alert("শ্রমিক মুছে ফেলতে সমস্যা হয়েছে: " + err.message);
+                        console.error("Worker status update failed: ", err);
+                        alert("শ্রমিকের স্ট্যাটাস আপডেট করা যায়নি। আবার চেষ্টা করুন।");
+                        target.disabled = false;
+                    }
+                } else if (action === 'delete-worker') {
+                    if (confirm('আপনি কি এই শ্রমিককে তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?')) {
+                        try {
+                            await deleteDoc(doc(db, "workers", id));
+                        } catch (err) {
+                            console.error("Worker delete failed: ", err);
+                            alert("শ্রমিক মুছে ফেলা যায়নি। আবার চেষ্টা করুন।");
+                        }
                     }
                 }
             });

@@ -33,7 +33,7 @@
 
     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg border w-full max-w-lg my-6">
         <div class="text-center mb-6">
-            <a href="/" class="text-2xl font-bold text-blue-600">🛠️ কাজ<span class="text-emerald-500">করি</span></a>
+            <a href="index.html" class="text-2xl font-bold text-blue-600">🛠️ কাজ<span class="text-emerald-500">করি</span></a>
             <h2 class="text-lg font-bold text-gray-800 mt-2">শ্রমিক হিসেবে রেজিস্ট্রেশন করুন</h2>
             <p class="text-xs text-gray-500">সঠিক তথ্য দিয়ে ফর্মটি পূরণ করুন</p>
         </div>
@@ -48,7 +48,7 @@
             <!-- ফোন নম্বর -->
             <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">মোবাইল নম্বর *</label>
-                <input type="tel" id="workerPhone" required placeholder="017XXXXXXXX" pattern="^(01)[3-9][0-9]{8}$" title="১১ ডিজিটের সঠিক বাংলাদেশী মোবাইল নম্বর দিন" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
+                <input type="tel" id="workerPhone" required placeholder="017XXXXXXXX" inputmode="tel" autocomplete="tel" maxlength="17" title="১১ ডিজিটের সঠিক বাংলাদেশী মোবাইল নম্বর দিন" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
             </div>
 
             <!-- কাজের ক্যাটাগরি -->
@@ -56,14 +56,20 @@
                 <label class="block text-xs font-bold text-gray-700 mb-1">কাজের ধরন / ক্যাটাগরি *</label>
                 <select id="workerCategory" required class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
                     <option value="">ক্যাটাগরি নির্বাচন করুন</option>
+                    <option value="রং মিস্ত্রি">রং মিস্ত্রি</option>
                     <option value="ইলেকট্রিশিয়ান">ইলেকট্রিশিয়ান</option>
                     <option value="প্লাম্বার">প্লাম্বার (পাইপ মিস্ত্রি)</option>
                     <option value="রাজমিস্ত্রি">রাজমিস্ত্রি</option>
-                    <option value="রঙ মিস্ত্রি">রঙ মিস্ত্রি</option>
-                    <option value="কাঠ মিস্ত্রি">কাঠ মিস্ত্রি</option>
+                    <option value="কাঠমিস্ত্রি">কাঠমিস্ত্রি</option>
                     <option value="এসি ও ফ্রিজ টেকনিশিয়ান">এসি ও ফ্রিজ টেকনিশিয়ান</option>
-                    <option value="গাড়ি ড্রাইভার">গাড়ি ড্রাইভার</option>
+                    <option value="মেকানিক">মেকানিক (বাইক/গাড়ি)</option>
+                    <option value="বাসা পরিবর্তন ও লোডার">বাসা পরিবর্তন ও লোড-আনলোড</option>
                     <option value="ক্লিনার">ক্লিনার</option>
+                    <option value="কম্পিউটার ও সিসিটিভি">কম্পিউটার ও সিসিটিভি</option>
+                    <option value="দর্জি">দর্জি / টেইলার্স</option>
+                    <option value="মালি">মালি</option>
+                    <option value="গাড়ি চালক">গাড়ি চালক</option>
+                    <option value="রান্নার বাবুর্চি">বাবুর্চি / কুক</option>
                     <option value="অন্যান্য">অন্যান্য</option>
                 </select>
             </div>
@@ -77,7 +83,7 @@
             <!-- দৈনিক মজুরি -->
             <div>
                 <label class="block text-xs font-bold text-gray-700 mb-1">দৈনিক আনুমানিক মজুরি (টাকা) *</label>
-                <input type="number" id="workerDailyRate" required placeholder="যেমন: ৮০০" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
+                <input type="number" id="workerDailyRate" required min="1" max="100000" step="1" inputmode="numeric" placeholder="যেমন: 800" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 border focus:bg-white focus:outline-none focus:border-blue-500 text-sm">
             </div>
 
             <!-- প্রোফাইল ছবি আপলোড -->
@@ -93,26 +99,59 @@
         </form>
 
         <div class="text-center mt-4">
-            <a href="/" class="text-xs text-gray-500 hover:underline">← হোমপেজে ফিরে যান</a>
+            <a href="index.html" class="text-xs text-gray-500 hover:underline">← হোমপেজে ফিরে যান</a>
         </div>
     </div>
 
     <script>
         const IMGBB_API_KEY = "525a3f39773783e5f9783b26bd050d47";
+        const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
+
+        function toAsciiDigits(text) {
+            return String(text || '').replace(/[০-৯]/g, (d) => '০১২৩৪৫৬৭৮৯'.indexOf(d));
+        }
+
+        // 01XXXXXXXXX, or '' when it is not a Bangladeshi mobile number.
+        function normalizeBdPhone(raw) {
+            let phone = toAsciiDigits(raw).replace(/[\s\-()]/g, '');
+            if (phone.startsWith('+880')) phone = '0' + phone.slice(4);
+            else if (phone.startsWith('880') && phone.length === 13) phone = '0' + phone.slice(3);
+            return /^01[3-9][0-9]{8}$/.test(phone) ? phone : '';
+        }
 
         async function handleRegistration(e) {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
-            
+
             const name = document.getElementById('workerName').value.trim();
-            const phone = document.getElementById('workerPhone').value.trim();
+            const phone = normalizeBdPhone(document.getElementById('workerPhone').value);
             const category = document.getElementById('workerCategory').value;
             const area = document.getElementById('workerArea').value.trim();
-            const dailyRate = document.getElementById('workerDailyRate').value;
+            const dailyRate = Number(toAsciiDigits(document.getElementById('workerDailyRate').value));
             const photoFile = document.getElementById('workerPhoto').files[0];
 
+            if (!name || !area || !category) {
+                alert("অনুগ্রহ করে নাম, কাজের ধরন ও এলাকা পূরণ করুন।");
+                return;
+            }
+            if (!phone) {
+                alert("সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)।");
+                return;
+            }
+            if (!Number.isFinite(dailyRate) || dailyRate < 1 || dailyRate > 100000) {
+                alert("দৈনিক মজুরি ১ থেকে ১,০০,০০০ টাকার মধ্যে লিখুন।");
+                return;
+            }
             if (!photoFile) {
                 alert("অনুগ্রহ করে একটি ছবি সিলেক্ট করুন!");
+                return;
+            }
+            if (!photoFile.type.startsWith('image/')) {
+                alert("শুধুমাত্র ছবি (JPG/PNG) আপলোড করা যাবে।");
+                return;
+            }
+            if (photoFile.size > MAX_PHOTO_BYTES) {
+                alert("ছবির সাইজ ৫ মেগাবাইটের কম হতে হবে।");
                 return;
             }
 
@@ -129,10 +168,15 @@
                     body: formData
                 });
 
-                const result = await response.json();
+                let result = null;
+                try {
+                    result = await response.json();
+                } catch (parseError) {
+                    result = null;
+                }
 
-                if (!result.success) {
-                    throw new Error("ছবি আপলোড ব্যর্থ হয়েছে!");
+                if (!response.ok || !result || !result.success || !result.data || !result.data.url) {
+                    throw new Error("ছবি আপলোড ব্যর্থ হয়েছে! অন্য একটি ছবি দিয়ে আবার চেষ্টা করুন।");
                 }
 
                 const photoURL = result.data.url;
@@ -146,18 +190,20 @@
                     phone: phone,
                     category: category,
                     area: area,
-                    dailyRate: Number(dailyRate),
+                    dailyRate: dailyRate,
                     photoURL: photoURL,
                     status: 'pending',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                alert("🎉 আপনার রেজিস্ট্রেশন সফলভাবে জমা হয়েছে!");
-                window.location.href = "/";
+                alert("🎉 আপনার রেজিস্ট্রেশন সফলভাবে জমা হয়েছে! যাচাই শেষে আপনার প্রোফাইল ভেরিফাইড দেখাবে।");
+                window.location.href = "index.html";
 
             } catch (error) {
-                console.error(error);
-                alert("❌ এরর: " + error.message);
+                console.error('Registration failed:', error);
+                // Our own messages are Bangla; anything else (network, Firestore) gets a generic one.
+                const known = error && typeof error.message === 'string' && error.message.startsWith('ছবি আপলোড');
+                alert("❌ " + (known ? error.message : "রেজিস্ট্রেশন জমা দেওয়া যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।"));
                 btn.disabled = false;
                 btn.innerText = "রেজিস্ট্রেশন সম্পূর্ণ করুন";
             }

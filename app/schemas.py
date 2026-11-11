@@ -1,5 +1,7 @@
+from decimal import Decimal
 from typing import List, Optional
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 from app.models import ApplicationStatus, JobStatus, TransactionStatus, UserRole
 
 
@@ -39,6 +41,25 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class PublicUserResponse(BaseModel):
+    """What anyone may see about a user.
+
+    No phone, no wallet, and no location below upazila: those stay private
+    until a booking is accepted (see CLAUDE.md, security rules).
+    """
+
+    id: int
+    full_name: Optional[str] = None
+    role: UserRole
+    is_verified: bool
+    location_division: Optional[str] = None
+    location_district: Optional[str] = None
+    location_upazila: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     location_division: Optional[str] = None
@@ -52,7 +73,7 @@ class ReviewCreate(BaseModel):
     job_id: int
     target_user_id: int
     rating: int
-    comment: Optional[str] = None
+    comment: Optional[str] = Field(default=None, max_length=2000)
 
 
 class ReviewResponse(BaseModel):
@@ -68,9 +89,11 @@ class ReviewResponse(BaseModel):
 
 
 class JobCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    budget: float
+    title: str = Field(min_length=1, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    # Decimal, and strictly positive: a zero or negative budget would let the
+    # escrow release move money in the wrong direction.
+    budget: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     category: Optional[str] = None
     location_division: Optional[str] = None
     location_district: Optional[str] = None
@@ -99,9 +122,9 @@ class JobResponse(BaseModel):
 
 
 class ApplicationCreate(BaseModel):
-    proposed_rate: Optional[float] = None
-    proposed_budget: Optional[float] = None
-    cover_note: Optional[str] = None
+    proposed_rate: Optional[Decimal] = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    proposed_budget: Optional[Decimal] = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    cover_note: Optional[str] = Field(default=None, max_length=2000)
 
 
 class ApplicationResponse(BaseModel):

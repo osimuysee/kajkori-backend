@@ -30,18 +30,18 @@
 
     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg border w-full max-w-md">
         <div class="text-center mb-6">
-            <a href="/" class="text-2xl font-bold text-blue-600">🛠️ কাজ<span class="text-emerald-500">করি</span></a>
+            <a href="index.html" class="text-2xl font-bold text-blue-600">🛠️ কাজ<span class="text-emerald-500">করি</span></a>
             <h2 class="text-lg font-bold text-gray-800 mt-2">অ্যাকাউন্টে লগইন করুন</h2>
         </div>
 
         <!-- সোশ্যাল লগইন বাটন -->
         <div class="space-y-2.5 mb-5">
-            <button onclick="loginWithGoogle()" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-2.5 rounded-xl transition text-sm shadow-sm">
+            <button type="button" onclick="loginWithGoogle()" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-2.5 rounded-xl transition text-sm shadow-sm">
                 <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
                 Google দিয়ে লগইন
             </button>
 
-            <button onclick="loginWithFacebook()" class="w-full flex items-center justify-center gap-3 bg-[#1877F2] hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-sm">
+            <button type="button" onclick="loginWithFacebook()" class="w-full flex items-center justify-center gap-3 bg-[#1877F2] hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-sm">
                 <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                 Facebook দিয়ে লগইন
             </button>
@@ -60,7 +60,7 @@
             <!-- নম্বর লেখার ফর্ম -->
             <form id="phoneForm" onsubmit="sendOTP(event)" class="space-y-3">
                 <div>
-                    <input type="tel" id="phoneNumber" placeholder="017XXXXXXXX" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border focus:outline-none focus:border-emerald-500 text-sm">
+                    <input type="tel" id="phoneNumber" placeholder="017XXXXXXXX" required inputmode="tel" autocomplete="tel" maxlength="17" class="w-full px-3.5 py-2.5 rounded-xl bg-white border focus:outline-none focus:border-emerald-500 text-sm">
                 </div>
                 <div id="recaptcha-container"></div>
                 <button type="submit" id="sendOtpBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl transition text-sm shadow-md">
@@ -72,10 +72,13 @@
             <form id="otpForm" onsubmit="verifyOTP(event)" class="space-y-3 hidden">
                 <p class="text-xs text-gray-600">আপনার নম্বরে পাঠানো ৬ ডিজিটের ওটিপি কোডটি লিখুন:</p>
                 <div>
-                    <input type="number" id="otpCode" placeholder="৬ ডিজিটের কোড (যেমন: 123456)" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border focus:outline-none focus:border-emerald-500 text-sm tracking-widest text-center font-bold">
+                    <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" id="otpCode" placeholder="৬ ডিজিটের কোড (যেমন: 123456)" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border focus:outline-none focus:border-emerald-500 text-sm tracking-widest text-center font-bold">
                 </div>
                 <button type="submit" id="verifyOtpBtn" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 rounded-xl transition text-sm shadow-md">
                     ওটিপি ভেরিফাই ও লগইন
+                </button>
+                <button type="button" onclick="showPhoneForm()" class="w-full text-xs text-emerald-700 hover:underline font-semibold">
+                    ← নম্বর পরিবর্তন করুন / আবার ওটিপি নিন
                 </button>
             </form>
         </div>
@@ -88,64 +91,135 @@
             </summary>
             <form onsubmit="handleEmailLogin(event)" class="space-y-3 mt-3">
                 <div>
-                    <input type="email" id="email" required placeholder="ইমেইল ঠিকানা" class="w-full px-3.5 py-2 rounded-xl bg-white border focus:outline-none focus:border-blue-500 text-sm">
+                    <input type="email" id="email" required autocomplete="username" placeholder="ইমেইল ঠিকানা" class="w-full px-3.5 py-2 rounded-xl bg-white border focus:outline-none focus:border-blue-500 text-sm">
                 </div>
                 <div>
-                    <input type="password" id="password" required placeholder="পাসওয়ার্ড" class="w-full px-3.5 py-2 rounded-xl bg-white border focus:outline-none focus:border-blue-500 text-sm">
+                    <input type="password" id="password" required autocomplete="current-password" placeholder="পাসওয়ার্ড" class="w-full px-3.5 py-2 rounded-xl bg-white border focus:outline-none focus:border-blue-500 text-sm">
                 </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition text-sm shadow-md">
+                <button type="submit" id="emailLoginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl transition text-sm shadow-md">
                     লগইন করুন
                 </button>
             </form>
         </details>
 
         <div class="text-center mt-6">
-            <a href="/" class="text-xs text-gray-500 hover:underline">← হোমপেজে ফিরে যান</a>
+            <a href="index.html" class="text-xs text-gray-500 hover:underline">← হোমপেজে ফিরে যান</a>
         </div>
     </div>
 
     <script>
-        // রিক্যাপচা সেটআপ (Firebase Phone Auth এর জন্য প্রয়োজন)
-        window.onload = function() {
-            window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-                'size': 'invisible'
-            });
-        };
+        // After login go back to the admin page when that is where the visitor
+        // came from (admin.html sends ?next=admin). Only this fixed value is
+        // accepted, so the parameter cannot be used to redirect to another site.
+        // Relative paths on purpose: the pages are also served from a sub-folder
+        // (GitHub Pages: /kajkori-backend/static/), where "/" is a 404.
+        const AFTER_LOGIN_URL = new URLSearchParams(window.location.search).get('next') === 'admin' ? 'admin.html' : 'index.html';
 
-        // ১. মোবাইল নম্বর দিয়ে OTP পাঠানো
+        function toAsciiDigits(text) {
+            return String(text || '').replace(/[০-৯]/g, (d) => '০১২৩৪৫৬৭৮৯'.indexOf(d));
+        }
+
+        // +8801XXXXXXXXX for Firebase, or '' when it is not a Bangladeshi mobile number.
+        // Accepts 017..., 88017..., +88017..., spaces, dashes and Bangla digits.
+        function toE164BdPhone(raw) {
+            let phone = toAsciiDigits(raw).replace(/[\s\-()]/g, '');
+            if (phone.startsWith('+880')) phone = '0' + phone.slice(4);
+            else if (phone.startsWith('880') && phone.length === 13) phone = '0' + phone.slice(3);
+            else if (/^1[3-9][0-9]{8}$/.test(phone)) phone = '0' + phone;
+            return /^01[3-9][0-9]{8}$/.test(phone) ? '+88' + phone : '';
+        }
+
+        // Firebase error codes in Bangla, instead of raw English error text.
+        function authErrorMessage(error) {
+            const messages = {
+                'auth/invalid-phone-number': 'মোবাইল নম্বরটি সঠিক নয়।',
+                'auth/too-many-requests': 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।',
+                'auth/quota-exceeded': 'এই মুহূর্তে SMS পাঠানো যাচ্ছে না। কিছুক্ষণ পর আবার চেষ্টা করুন।',
+                'auth/captcha-check-failed': 'নিরাপত্তা যাচাই ব্যর্থ হয়েছে। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+                'auth/network-request-failed': 'ইন্টারনেট সংযোগে সমস্যা। সংযোগ দেখে আবার চেষ্টা করুন।',
+                'auth/invalid-verification-code': 'ওটিপি কোডটি ভুল। আবার চেষ্টা করুন।',
+                'auth/code-expired': 'ওটিপি কোডের মেয়াদ শেষ। নতুন কোড নিন।',
+                'auth/user-disabled': 'এই অ্যাকাউন্টটি বন্ধ করা আছে।',
+                'auth/user-not-found': 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।',
+                'auth/wrong-password': 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।',
+                'auth/invalid-credential': 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।',
+                'auth/invalid-login-credentials': 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।',
+                'auth/invalid-email': 'ইমেইল ঠিকানাটি সঠিক নয়।',
+                'auth/popup-closed-by-user': 'লগইন উইন্ডোটি বন্ধ করা হয়েছে। আবার চেষ্টা করুন।',
+                'auth/cancelled-popup-request': 'লগইন উইন্ডোটি বন্ধ করা হয়েছে। আবার চেষ্টা করুন।',
+                'auth/popup-blocked': 'ব্রাউজার পপ-আপ আটকে দিয়েছে। পপ-আপ চালু করে আবার চেষ্টা করুন।',
+                'auth/account-exists-with-different-credential': 'এই ইমেইল দিয়ে অন্য পদ্ধতিতে অ্যাকাউন্ট খোলা আছে। সেই পদ্ধতিতে লগইন করুন।',
+                'auth/operation-not-allowed': 'এই লগইন পদ্ধতিটি এখন চালু নেই।'
+            };
+            console.error('Login failed:', error && error.code);
+            return (error && messages[error.code]) || 'লগইন করা যায়নি। কিছুক্ষণ পর আবার চেষ্টা করুন।';
+        }
+
+        // রিক্যাপচা সেটআপ (Firebase Phone Auth এর জন্য প্রয়োজন)
+        window.addEventListener('load', () => {
+            try {
+                window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                    'size': 'invisible'
+                });
+            } catch (error) {
+                console.error('reCAPTCHA setup failed:', error);
+            }
+        });
+
+        // A reCAPTCHA token works once. After a failed send it has to be reset,
+        // otherwise the second "send OTP" click fails until the page is reloaded.
+        function resetRecaptcha() {
+            try {
+                window.recaptchaVerifier.render().then((widgetId) => {
+                    if (window.grecaptcha) window.grecaptcha.reset(widgetId);
+                });
+            } catch (error) {
+                console.error('reCAPTCHA reset failed:', error);
+            }
+        }
+
+        function showPhoneForm() {
+            const btn = document.getElementById('sendOtpBtn');
+            btn.disabled = false;
+            btn.innerText = "ওটিপি (OTP) পাঠান";
+            document.getElementById('otpCode').value = '';
+            document.getElementById('otpForm').classList.add('hidden');
+            document.getElementById('phoneForm').classList.remove('hidden');
+            window.confirmationResult = null;
+            resetRecaptcha();
+        }
+
+        // ১. মোবাইল নম্বর দিয়ে OTP পাঠানো
         function sendOTP(e) {
             e.preventDefault();
             const btn = document.getElementById('sendOtpBtn');
-            let phone = document.getElementById('phoneNumber').value.trim();
+            const phone = toE164BdPhone(document.getElementById('phoneNumber').value);
 
             if (!phone) {
-                alert("অনুগ্রহ করে সঠিক মোবাইল নম্বর দিন");
+                alert("সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)");
                 return;
             }
-
-            // বাংলাদেশের নম্বর অনুযায়ী ফরম্যাট তৈরি (+880...)
-            if (phone.startsWith('0')) {
-                phone = '+88' + phone;
-            } else if (!phone.startsWith('+88')) {
-                phone = '+880' + phone;
+            if (!window.recaptchaVerifier) {
+                alert("নিরাপত্তা যাচাই চালু হয়নি। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।");
+                return;
             }
 
             btn.disabled = true;
             btn.innerText = "ওটিপি পাঠানো হচ্ছে...";
 
-            const appVerifier = window.recaptchaVerifier;
-
-            firebase.auth().signInWithPhoneNumber(phone, appVerifier)
+            firebase.auth().signInWithPhoneNumber(phone, window.recaptchaVerifier)
                 .then((confirmationResult) => {
                     window.confirmationResult = confirmationResult;
-                    alert("আপনার ফোনে ৬ ডিজিটের ওটিপি কোড পাঠানো হয়েছে!");
+                    alert("আপনার ফোনে ৬ ডিজিটের ওটিপি কোড পাঠানো হয়েছে!");
                     document.getElementById('phoneForm').classList.add('hidden');
                     document.getElementById('otpForm').classList.remove('hidden');
+                    document.getElementById('otpCode').focus();
                 })
                 .catch((error) => {
-                    alert("ওটিপি পাঠাতে সমস্যা হয়েছে: " + error.message);
+                    alert(authErrorMessage(error));
                     btn.disabled = false;
                     btn.innerText = "ওটিপি (OTP) পাঠান";
+                    resetRecaptcha();
                 });
         }
 
@@ -153,10 +227,15 @@
         function verifyOTP(e) {
             e.preventDefault();
             const btn = document.getElementById('verifyOtpBtn');
-            const code = document.getElementById('otpCode').value.trim();
+            const code = toAsciiDigits(document.getElementById('otpCode').value).replace(/\s/g, '');
 
-            if (!code || code.length < 6) {
+            if (!/^[0-9]{6}$/.test(code)) {
                 alert("অনুগ্রহ করে ৬ ডিজিটের ওটিপি কোডটি লিখুন");
+                return;
+            }
+            if (!window.confirmationResult) {
+                alert("আগে মোবাইল নম্বর দিয়ে ওটিপি নিন।");
+                showPhoneForm();
                 return;
             }
 
@@ -164,51 +243,59 @@
             btn.innerText = "যাচাই করা হচ্ছে...";
 
             window.confirmationResult.confirm(code)
-                .then((result) => {
-                    alert("ফোন নম্বর সফলভাবে ভেরিফাই হয়েছে!");
-                    window.location.href = "/";
+                .then(() => {
+                    alert("ফোন নম্বর সফলভাবে ভেরিফাই হয়েছে!");
+                    window.location.href = AFTER_LOGIN_URL;
                 })
                 .catch((error) => {
-                    alert("ভুল ওটিপি অথবা কোডটি মেয়ারাদোত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।");
+                    alert(authErrorMessage(error));
                     btn.disabled = false;
                     btn.innerText = "ওটিপি ভেরিফাই ও লগইন";
                 });
         }
 
-        // ৩. গুগল দিয়ে লগইন
+        // ৩. গুগল দিয়ে লগইন
         function loginWithGoogle() {
             const provider = new firebase.auth.GoogleAuthProvider();
             firebase.auth().signInWithPopup(provider)
                 .then(() => {
-                    alert("গুগল দিয়ে সফলভাবে লগইন হয়েছে!");
-                    window.location.href = "/";
+                    alert("গুগল দিয়ে সফলভাবে লগইন হয়েছে!");
+                    window.location.href = AFTER_LOGIN_URL;
                 })
-                .catch(error => alert("এরর: " + error.message));
+                .catch((error) => alert(authErrorMessage(error)));
         }
 
-        // ৪. ফেসবুক দিয়ে লগইন
+        // ৪. ফেসবুক দিয়ে লগইন
         function loginWithFacebook() {
             const provider = new firebase.auth.FacebookAuthProvider();
             firebase.auth().signInWithPopup(provider)
                 .then(() => {
-                    alert("ফেসবুক দিয়ে সফলভাবে লগইন হয়েছে!");
-                    window.location.href = "/";
+                    alert("ফেসবুক দিয়ে সফলভাবে লগইন হয়েছে!");
+                    window.location.href = AFTER_LOGIN_URL;
                 })
-                .catch(error => alert("এরর: " + error.message));
+                .catch((error) => alert(authErrorMessage(error)));
         }
 
-        // ৫. ইমেইল/পাসওয়ার্ড দিয়ে লগইন
+        // ৫. ইমেইল/পাসওয়ার্ড দিয়ে লগইন
         function handleEmailLogin(e) {
             e.preventDefault();
-            const email = document.getElementById('email').value;
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
+            const btn = document.getElementById('emailLoginBtn');
+
+            btn.disabled = true;
+            btn.innerText = "লগইন হচ্ছে...";
 
             firebase.auth().signInWithEmailAndPassword(email, password)
                 .then(() => {
-                    alert("লগইন সফল হয়েছে!");
-                    window.location.href = "/";
+                    alert("লগইন সফল হয়েছে!");
+                    window.location.href = AFTER_LOGIN_URL;
                 })
-                .catch(error => alert("এরর: " + error.message));
+                .catch((error) => {
+                    alert(authErrorMessage(error));
+                    btn.disabled = false;
+                    btn.innerText = "লগইন করুন";
+                });
         }
     </script>
 </body>

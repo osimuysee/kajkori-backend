@@ -2,10 +2,9 @@ from decimal import Decimal
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import NoResultFound
 
 from app.auth import get_current_user
 from app.database import get_db
@@ -17,6 +16,7 @@ from app.models import (
     TransactionType,
     User,
 )
+from app.models_marketplace import AuditLog
 
 router = APIRouter(prefix="/api/v1/wallet", tags=["Wallet & Escrow Payment"])
 
@@ -45,7 +45,9 @@ class WithdrawRequest(BaseModel):
 def get_wallet_balance(current_user: User = Depends(get_current_user)):
     # wallet_balance and reserved_balance are Decimal/Numeric in the model
     balance = current_user.wallet_balance or Decimal("0.00")
-    reserved = getattr(current_user, "reserved_balance", Decimal("0.00"))
+    # "or 0": reserved_balance is NULL for rows created before the column
+    # existed, and Decimal - None raised TypeError (HTTP 500).
+    reserved = getattr(current_user, "reserved_balance", None) or Decimal("0.00")
     available = balance - reserved
     return {
         "user_id": current_user.id,
@@ -112,24 +114,48 @@ def deposit_funds(
     }
 
 
+# ---- Row locks for money movement ---------------------------------------------
+# SELECT ... FOR UPDATE: on PostgreSQL a second request for the same rows waits
+# until the first one has committed or rolled back. SQLite ignores it (local
+# development only, single writer).
+def _locked_job_query(db: Session, job_id: int):
+    return db.query(Job).filter(Job.id == job_id).with_for_update()
+
+
+def _locked_wallets_query(db: Session, user_ids):
+    # Always lock in id order: two releases between the same two users in
+    # opposite directions then wait for each other instead of deadlocking.
+    # populate_existing(): the logged-in user is already loaded in this session,
+    # and without it SQLAlchemy would keep the balance it read BEFORE the lock.
+    return (
+        db.query(User)
+        .filter(User.id.in_(set(user_ids)))
+        .order_by(User.id)
+        .with_for_update()
+        .populate_existing()
+    )
+
+
 # ৩. কাজ শেষে এসক্রো থেকে কর্মীকে পেমেন্ট রিলিজ করা
 @router.post("/release-escrow/{job_id}")
 def release_escrow_payment(
     job_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Acquire fresh rows and apply simple locking pattern where possible
-    job = db.query(Job).filter(Job.id == job_id).first()
+    # Lock the job first. Everything below (including the "already paid" check)
+    # runs while this job is locked, so two releases of one job cannot both pay.
+    job = _locked_job_query(db, job_id).first()
     if not job:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="কাজটি পাওয়া যায়নি"
+            status_code=status.HTTP_404_NOT_FOUND, detail="কাজটি পাওয়া যায়নি"
         )
 
     if job.employer_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="শুধুমাত্র নিয়োগকর্তা পেমেন্ট রিলিজ করতে পারবেন",
+            detail="শুধুমাত্র নিয়োগকর্তা পেমেন্ট রিলিজ করতে পারবেন",
         )
 
     if job.status != JobStatus.COMPLETED:
@@ -144,49 +170,103 @@ def release_escrow_payment(
             detail="এই কাজে কোনো কর্মী এসাইন করা নেই",
         )
 
-    # Reload current_user with lock (DB-specific; with_for_update not available in all backends)
-    user_row = db.query(User).filter(User.id == current_user.id).first()
-    worker = db.query(User).filter(User.id == job.worker_id).first()
-    if not worker:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="কর্মী পাওয়া যায়নি"
-        )
-
-    budget = job.budget
-    available = (user_row.wallet_balance or Decimal("0.00")) - (getattr(user_row, "reserved_balance", Decimal("0.00")) or Decimal("0.00"))
-
-    if available < budget:
+    if job.worker_id == job.employer_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"পর্যাপ্ত ব্যালেন্স নেই। আপনার ওয়ালেটে অন্তত {float(budget)} BDT থাকতে হবে।"
-            ),
+            detail="নিজের কাজের পেমেন্ট নিজেকে রিলিজ করা যাবে না",
         )
 
-    # Move funds: decrease user's wallet_balance, increase worker's wallet_balance
-    user_row.wallet_balance = (user_row.wallet_balance or Decimal("0.00")) - budget
-    worker.wallet_balance = (worker.wallet_balance or Decimal("0.00")) + budget
-
-    trx = Transaction(
-        job_id=job.id,
-        receiver_id=worker.id,
-        amount=budget,
-        type=TransactionType.ESCROW,
-        payment_provider="wallet_escrow",
-        status=TransactionStatus.SUCCESS,
-        is_released=True,
+    # A job is paid exactly once. (Before this check every extra call paid the
+    # worker again for as long as the employer had balance.)
+    already_paid = (
+        db.query(Transaction.id)
+        .filter(
+            Transaction.job_id == job.id,
+            Transaction.type == TransactionType.ESCROW,
+            Transaction.status == TransactionStatus.SUCCESS,
+        )
+        .first()
     )
+    if already_paid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="এই কাজের পেমেন্ট ইতিমধ্যে রিলিজ করা হয়েছে",
+        )
 
-    db.add(trx)
-    db.commit()
+    # New jobs cannot be saved with such a budget, but an old row could have one,
+    # and a negative amount would move money from the worker to the employer.
+    budget = job.budget
+    if budget is None or budget <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="এই কাজের বাজেট সঠিক নয়, তাই পেমেন্ট রিলিজ করা যাবে না",
+        )
+
+    try:
+        wallets = {u.id: u for u in _locked_wallets_query(db, [job.employer_id, job.worker_id]).all()}
+        employer = wallets.get(job.employer_id)
+        worker = wallets.get(job.worker_id)
+        if not employer or not worker:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="কর্মী পাওয়া যায়নি"
+            )
+
+        # Balance is read AFTER the lock, so a withdrawal or another release
+        # that finished a moment ago is already counted.
+        available = (employer.wallet_balance or Decimal("0.00")) - (employer.reserved_balance or Decimal("0.00"))
+        if available < budget:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"পর্যাপ্ত ব্যালেন্স নেই। আপনার ওয়ালেটে অন্তত {format_bdt(budget)} থাকতে হবে।"
+                ),
+            )
+
+        # Move funds: decrease employer's wallet_balance, increase worker's wallet_balance
+        employer.wallet_balance = (employer.wallet_balance or Decimal("0.00")) - budget
+        worker.wallet_balance = (worker.wallet_balance or Decimal("0.00")) + budget
+
+        trx = Transaction(
+            job_id=job.id,
+            receiver_id=worker.id,
+            amount=budget,
+            type=TransactionType.ESCROW,
+            payment_provider="wallet_escrow",
+            status=TransactionStatus.SUCCESS,
+            is_released=True,
+        )
+        db.add(trx)
+        db.flush()  # gives trx.id for the audit row, still inside the same transaction
+
+        # Every money movement leaves an audit row. IDs and the amount only:
+        # no phone numbers or names in `details`.
+        db.add(AuditLog(
+            actor_user_id=employer.id,
+            actor_role=getattr(employer.role, "value", None),
+            action="escrow.released",
+            target_type="job",
+            target_id=str(job.id),
+            ip_address=request.client.host if request.client else None,
+            user_agent=(request.headers.get("user-agent") or "")[:255] or None,
+            details={
+                "amount": f"{budget:.2f}",
+                "worker_user_id": worker.id,
+                "transaction_id": trx.id,
+            },
+        ))
+
+        # Wallets, transaction and audit row are saved together or not at all.
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "status": "success",
-        "message": (
-            f"কর্মী ({worker.phone})-এর ওয়ালেটে {float(budget)} BDT সফলভাবে পাঠানো হয়েছে"
-        ),
-        "employer_remaining_balance": float(user_row.wallet_balance),
-        "employer_remaining_balance_formatted": format_bdt(user_row.wallet_balance),
+        "message": f"কর্মীর ওয়ালেটে {format_bdt(budget)} সফলভাবে পাঠানো হয়েছে",
+        "transaction_id": trx.id,
+        "employer_remaining_balance": float(employer.wallet_balance),
+        "employer_remaining_balance_formatted": format_bdt(employer.wallet_balance),
     }
 
 

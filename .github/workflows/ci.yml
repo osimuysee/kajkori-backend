@@ -25,12 +25,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest httpx==0.24.1
+          pip install -r requirements-dev.txt
 
       - name: Run tests
         env:
-          SECRET_KEY: test-secret
+          APP_ENV: test
+          # Fake values for tests only (tests/conftest.py sets its own anyway).
+          SECRET_KEY: test-only-secret-key-not-used-anywhere-real
           PAYMENT_WEBHOOK_SECRET: devsecret
         run: |
           pytest -q
