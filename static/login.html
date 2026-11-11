@@ -30,7 +30,7 @@
 
     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg border w-full max-w-md">
         <div class="text-center mb-6">
-            <a href="/" class="text-2xl font-bold text-blue-600">🛠️ কাজ<span class="text-emerald-500">করি</span></a>
+            <a href="index.html" class="text-2xl font-bold text-blue-600">🛠️ কাজ<span class="text-emerald-500">করি</span></a>
             <h2 class="text-lg font-bold text-gray-800 mt-2">অ্যাকাউন্টে লগইন করুন</h2>
         </div>
 
@@ -103,7 +103,7 @@
         </details>
 
         <div class="text-center mt-6">
-            <a href="/" class="text-xs text-gray-500 hover:underline">← হোমপেজে ফিরে যান</a>
+            <a href="index.html" class="text-xs text-gray-500 hover:underline">← হোমপেজে ফিরে যান</a>
         </div>
     </div>
 
@@ -111,7 +111,9 @@
         // After login go back to the admin page when that is where the visitor
         // came from (admin.html sends ?next=admin). Only this fixed value is
         // accepted, so the parameter cannot be used to redirect to another site.
-        const AFTER_LOGIN_URL = new URLSearchParams(window.location.search).get('next') === 'admin' ? '/admin' : '/';
+        // Relative paths on purpose: the pages are also served from a sub-folder
+        // (GitHub Pages: /kajkori-backend/static/), where "/" is a 404.
+        const AFTER_LOGIN_URL = new URLSearchParams(window.location.search).get('next') === 'admin' ? 'admin.html' : 'index.html';
 
         function toAsciiDigits(text) {
             return String(text || '').replace(/[০-৯]/g, (d) => '০১২৩৪৫৬৭৮৯'.indexOf(d));
